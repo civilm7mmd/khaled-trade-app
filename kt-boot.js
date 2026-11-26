@@ -369,7 +369,7 @@ const Auth=(()=>{
   async login(un,pw){const w=wait();if(w)return{ok:false,msg:'محاولات كتير غلط. استنى '+w+' ثانية'};
    const ks=getKS();if(!ks)return{ok:false,msg:'النظام لسه مجهّزش'};const en=ks.u[low(un)];
    try{if(!en){await kdf(pw,rnd(16),ks.it);throw 0}const raw=await open(await kdf(pw,unb(en.s),ks.it),en.w);okLogin();await unlock(raw,en.id);fresh=true;return{ok:true}}
-   catch(e){if(e&&e.message==='off')return{ok:false,msg:'الحساب ده موقوف. كلم المدير'};fail();const w2=wait();return{ok:false,msg:w2?'محاولات كتير غلط. استنى '+w2+' ثانية':'اسم المستخدم أو الباسورد غلط'}}},
+   catch(e){if(e&&e.message==='off')return{ok:false,msg:'الحساب ده موقوف. كلم المدير'};fail();const w2=wait();return{ok:false,msg:w2?'محاولات كتير غلط. استنى '+w2+' ثانية':'اسم المستخدم أو الباسورد غلط. اكتب اسم المستخدم بالظبط (حروف إنجليزي من غير مسافات) والباسورد (الحروف الكبيرة والصغيرة مهمة)'}}},
   async resume(){let s;try{s=JSON.parse(sessionStorage.getItem('kt_sk')||'null')}catch(e){}if(!s)return false;
    const n=Date.now();t0=s.t;la=s.l;if(n-s.l>idleMs0()||n-s.t>12*3600e3){sessionStorage.removeItem('kt_sk');return false}
    try{await unlock(unb(s.k),s.u);t0=s.t;stash();return true}catch(e){sessionStorage.removeItem('kt_sk');dek=DK=null;uid=0;return false}},
@@ -423,15 +423,19 @@ function authScreen(){if(Auth.hasKS()){authLogin();return}
 function authLogin(){const w=Auth.wait();authShell(`<h1>${esc(db.settings.name||'خالد تريد')}</h1><div class="sub">سجّل دخولك علشان تكمل</div>
  <form onsubmit="authDoLogin();return false"><label>اسم المستخدم</label><input id="lg_u" autocomplete="username" autocapitalize="none" spellcheck="false"><label>الباسورد</label><div class="pw"><input id="lg_p" type="password" autocomplete="current-password">${eyeBtn('lg_p')}</div>
  <div class="er" id="lg_e">${w?'استنى '+w+' ثانية':''}</div><button class="btn" id="lg_b" type="submit" style="margin-top:6px">دخول</button></form><a class="lk" onclick="authRecover()">نسيت الباسورد؟</a><div class="ft">🔒 بياناتك مشفرة على الجهاز</div>`);setTimeout(()=>{const u=A$('lg_u');if(u)u.focus()},50)}
-async function authDoLogin(){const u=A$('lg_u').value,p=A$('lg_p').value,b=A$('lg_b'),e=A$('lg_e');if(!u.trim()||!p){e.textContent='اكتب اسم المستخدم والباسورد';return}
+/* أسماء دخول بديلة: عابدين / abdeen بتدخّل حساب المدير التاني (manager2) بنفس الباسورد، واسم manager2 القديم لسه شغال */
+const KT_ALIAS={'abdeen':'manager2','abdeen ':'manager2','عابدين':'manager2','عابدين ':'manager2'};
+const ktUser=x=>{x=String(x||'').normalize('NFKC').replace(/[\u064B-\u065F\u0640]/g,'').trim();const k=x.toLowerCase();return KT_ALIAS[k]||x};
+async function authDoLogin(){const u=ktUser(A$('lg_u').value),p=A$('lg_p').value,b=A$('lg_b'),e=A$('lg_e');if(!u.trim()||!p){e.textContent='اكتب اسم المستخدم والباسورد';return}
  b.disabled=true;b.textContent='جارِ التحقق…';e.textContent='';const r=await Auth.login(u,p);if(r.ok){postInit();welcome();route();return}
- if(!Auth.hasUser(u)&&!/استنى/.test(r.msg||'')){b.textContent='جارِ التحقق…';e.textContent='المستخدم ده مش متسجل على الجهاز ده. افتح اللينك من جهاز جديد، أو كلم المدير';}
- else e.textContent=r.msg;b.disabled=false;b.textContent='دخول';A$('lg_p').value='';A$('lg_p').focus()}
+ /* حساب تاني على نفس الجهاز: لو المستخدم مش متسجل هنا (أو الباسورد اتغير من جهاز تاني) ندخله بالظرف المشفر على السحابة زي الجهاز الجديد */
+ if(!/استنى|موقوف/.test(r.msg||'')){try{b.textContent='جارِ الدخول…';const q=await KSY.envLogin(u.trim(),p);q.data.sync=q.sync;await Auth.joinDevice(q.data,u.trim(),p);postInit();welcome();route();return}catch(x){e.textContent=(!Auth.hasUser(u)&&x&&x.message)?x.message:r.msg;b.disabled=false;b.textContent='دخول';A$('lg_p').value='';A$('lg_p').focus();return}}
+ e.textContent=r.msg;b.disabled=false;b.textContent='دخول';A$('lg_p').value='';A$('lg_p').focus()}
 /* شاشة الجهاز الجديد: اسم المستخدم والباسورد بس. الظرف المشفر على السحابة بيربط الجهاز لوحده */
 function authEnvScreen(){authShell(`<h1>${esc((db.settings&&db.settings.name)||'خالد تريد')}</h1><div class="sub">اكتب اسم المستخدم والباسورد اللي المدير إداهولك</div>
  <form onsubmit="authEnvGo();return false"><label>اسم المستخدم</label><input id="ev_u" autocomplete="username" autocapitalize="none" spellcheck="false"><label>الباسورد</label><div class="pw"><input id="ev_p" type="password" autocomplete="current-password">${eyeBtn('ev_p')}</div>
  <div class="er" id="ev_e"></div><button class="btn" id="ev_b" type="submit" style="margin-top:6px">دخول</button></form><a class="lk" onclick="authSetup()">أول تشغيل للمدير</a><div class="ft">🔒 بياناتك مشفرة، وبتتزامن لوحدها بعد الدخول</div>`);setTimeout(()=>{const u=A$('ev_u');if(u)u.focus()},50)}
-async function authEnvGo(){const u=A$('ev_u').value.trim(),p=A$('ev_p').value,b=A$('ev_b'),e=A$('ev_e');if(!u||!p){e.textContent='اكتب اسم المستخدم والباسورد';return}
+async function authEnvGo(){const u=ktUser(A$('ev_u').value),p=A$('ev_p').value,b=A$('ev_b'),e=A$('ev_e');if(!u||!p){e.textContent='اكتب اسم المستخدم والباسورد';return}
  b.disabled=true;b.textContent='جارِ الدخول…';e.textContent='';
  try{const r=await KSY.envLogin(u,p);r.data.sync=r.sync;await Auth.joinDevice(r.data,u,p);postInit();welcome();route()}
  catch(x){b.disabled=false;b.textContent='دخول';e.textContent=x.message||'حصلت مشكلة';A$('ev_p').value=''}}

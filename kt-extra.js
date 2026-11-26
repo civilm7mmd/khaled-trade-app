@@ -1760,10 +1760,17 @@ const KSY=(()=>{
   async mkEnv(un,pw,email,apw){const c=cfg();if(!c||!c.kb)throw new Error('المزامنة مش مربوطة على الجهاز ده');await auth();
    const salt=crypto.getRandomValues(new Uint8Array(16)),pl=JSON.stringify({e:email,p:apw,kb:c.kb,s:c.salt});
    await put('env_'+await eh(un),{s:{stringValue:b64(salt)},w:{stringValue:await seal(await dkey(pw,salt),te.encode(pl))}})},
+  /* نسخ ظرف الدخول لاسم مستخدم جديد (لما اسم المستخدم يتغير من غير ما الباسورد يتكتب). الظرف مفيهوش الاسم، فبينفع نفس الباسورد */
+  async cpEnv(oldUn,newUn){if(String(oldUn).trim().toLowerCase()===String(newUn).trim().toLowerCase())return false;await auth();const m=await jf(FS+'/env_'+await eh(oldUn)+'?key='+FB.key);
+   await put('env_'+await eh(newUn),{s:{stringValue:m.fields.s.stringValue},w:{stringValue:m.fields.w.stringValue}});return true},
+  /* تغيير باسورد المستخدم لنفسه: نعيد تغليف الظرف بالباسورد الجديد */
+  async reEnv(un,oldPw,newPw){await auth();const h=await eh(un),m=await jf(FS+'/env_'+h+'?key='+FB.key);
+   const pl=td.decode(await open(await dkey(oldPw,unb(m.fields.s.stringValue)),m.fields.w.stringValue)),salt=crypto.getRandomValues(new Uint8Array(16));
+   await put('env_'+h,{s:{stringValue:b64(salt)},w:{stringValue:await seal(await dkey(newPw,salt),te.encode(pl))}})},
   async rmEnv(un){await auth();await del('env_'+await eh(un))},
   async envLogin(un,pw){const h=await eh(un);let m;
-   try{m=await jf(FS+'/env_'+h+'?key='+FB.key)}catch(e){if(e.code===404||e.code===403)throw new Error('اسم المستخدم أو الباسورد غلط');throw e}
-   let pl;try{pl=JSON.parse(td.decode(await open(await dkey(pw,unb(m.fields.s.stringValue)),m.fields.w.stringValue)))}catch(x){throw new Error('اسم المستخدم أو الباسورد غلط')}
+   try{m=await jf(FS+'/env_'+h+'?key='+FB.key)}catch(e){if(e.code===404||e.code===403)throw new Error('اسم المستخدم أو الباسورد غلط. اكتب اسم المستخدم بالظبط (حروف إنجليزي من غير مسافات) والباسورد (الحروف الكبيرة والصغيرة مهمة)');throw e}
+   let pl;try{pl=JSON.parse(td.decode(await open(await dkey(pw,unb(m.fields.s.stringValue)),m.fields.w.stringValue)))}catch(x){throw new Error('اسم المستخدم أو الباسورد غلط. اكتب اسم المستخدم بالظبط (حروف إنجليزي من غير مسافات) والباسورد (الحروف الكبيرة والصغيرة مهمة)')}
    const j=await signIn(pl.e,pl.p),mm=await get('meta');if(!mm)throw new Error('مفيش بيانات على السحابة لسه');const data=await readAll(mm,unb(pl.kb));
    return{data,sync:{email:pl.e,rt:j.refreshToken,kb:pl.kb,salt:pl.s,base:num(mm.fields.ver),dirty:false,seq:0,dev:'d'+Math.random().toString(36).slice(2,8)}}},
   mark(){const c=cfg();if(!c||applying)return;c.dirty=true;c.seq=(c.seq||0)+1;later();pill()},
@@ -1840,7 +1847,9 @@ async function envAcct(u){const c=db.sync;if(!c)return null;let a=u.acct;
  u.acct=a;return{email:a,pw:c.pool[a]}}
 const hook52=()=>{if(window._h52)return;window._h52=1;const _up=userPass;userPass=async function(u,pw,isNew){const ok=await _up(u,pw,isNew);if(!ok)return false;
  if(pw&&!DEMO&&db.sync&&u.id!==Auth.uid){try{const a=await envAcct(u);if(a){await KSY.mkEnv(u.username,pw,a.email,a.pw);save();toast('✅ '+u.name+' يقدر يدخل من أي جهاز باسمه وباسورده')}}catch(e){toast('اتحفظ بس مش اتربط بالسحابة: '+(e.message||''))}}
+ try{if(!DEMO&&db.sync&&u.acct){if(pw){u.envu=u.username}else if(u.envu&&u.envu.toLowerCase()!==String(u.username).toLowerCase()){await KSY.cpEnv(u.envu,u.username);u.envu=u.username;save();toast('✅ '+u.name+' يدخل دلوقتي باسمه الجديد وبنفس الباسورد')}else if(!u.envu){u.envu=u.username}}}catch(e){toast('اسم الدخول الجديد مش اتربط بالسحابة: '+(e.message||''))}
  return true};
+ try{const _co=Auth.changeOwn;Auth.changeOwn=async function(old,nw){const un=(db.users.find(x=>x.id==Auth.uid)||{}).username;const r=await _co.apply(this,arguments);try{if(!DEMO&&db.sync&&un)await KSY.reEnv(un,old,nw)}catch(e){}return r}}catch(e){}
  const _du=delUser;delUser=function(id){const u=db.users.find(x=>x.id==id),r=_du(id);if(u&&db.sync&&!db.users.some(x=>x.id==id)){KSY.rmEnv(u.username).catch(()=>{});toast('اتحذف المستخدم. لو كان معاه جهاز، غيّر باسورد البيانات')}return r}};
 if(document.readyState==='complete')setTimeout(hook52,0);else addEventListener('load',()=>setTimeout(hook52,0));
 
