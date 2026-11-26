@@ -1090,8 +1090,8 @@ R['/hr']=(sub,id)=>{HRS();const sg=location.hash.slice(1).split('?')[0].split('/
 Object.assign(ROUTE_PERM,{'/hr':'hr.view'});
 
 /* ---------- بطاقات الموظفين ---------- */
-function hrEmps(){head('بطاقات الموظفين',true);const act=db.staff.filter(e=>e.st!=='موقوف');
- return `<button class="btn" data-need="hr.manage" onclick="location.hash='#/hr/emp/new'">＋ موظف جديد</button><div class="mg" style="margin-top:10px">${db.staff.map(e=>`<a class="mgc" href="#/hr/emp/${e.id}"><i>${esc((e.name||'?')[0])}</i><b>${esc(e.name)}</b><small>${esc(e.job||'')}${e.dept?' · '+esc(e.dept):''}</small><small>${e.hire?'📅 تعيين '+e.hire:''}</small><em>${e.st==='موقوف'?'موقوف':'نشط'}</em></a>`).join('')||'<div class="empty">لسه مفيش موظفين. دوس "موظف جديد".</div>'}</div>`}
+function hrEmps(){head('بطاقات الموظفين',true);const act=db.staff.filter(e=>e.st!=='موقوف'),unl=db.users.filter(u=>!db.staff.some(e=>e.uid==u.id)).length;
+ return `<button class="btn" data-need="hr.manage" onclick="location.hash='#/hr/emp/new'">＋ موظف جديد</button>${unl?`<button class="btn sec" data-need="hr.manage" onclick="hrMkFromUsers()">🔗 عمل بطاقة موظف لكل مستخدم مالوش بطاقة (${unl})</button>`:''}<div class="mg" style="margin-top:10px">${db.staff.map(e=>`<a class="mgc" href="#/hr/emp/${e.id}"><i>${esc((e.name||'?')[0])}</i><b>${esc(e.name)}</b><small>${esc(e.job||'')}${e.dept?' · '+esc(e.dept):''}</small><small>${e.hire?'📅 تعيين '+e.hire:''}</small><em>${e.st==='موقوف'?'موقوف':'نشط'}</em></a>`).join('')||'<div class="empty">لسه مفيش موظفين. دوس "موظف جديد".</div>'}</div>`}
 function hrEmp1(id){head('بطاقة موظف',true);const H=HRS(),n=id==='new',e=n?{st:'نشط'}:hrEmp(id);if(!n&&!e.id)return nf();
  const m=today().slice(0,7),st=n?null:attStats(e,m+'-01',today()),pc=n?null:payCalc(e,m);
  const lv=n?0:db.hrlv.filter(l=>l.eid==e.id&&l.st==='معتمدة'&&l.type==='سنوية'&&l.from.startsWith(today().slice(0,4))).reduce((s,l)=>s+l.days,0);
@@ -1102,10 +1102,10 @@ function hrEmp1(id){head('بطاقة موظف',true);const H=HRS(),n=id==='new',
  <div class="kpis" style="margin-top:10px"><div class="kpi" style="--c:#2b5aa1"><small>حضور الشهر</small><b>${st.pres} يوم</b></div><div class="kpi" style="--c:#f0a500"><small>تأخير</small><b>${st.late} مرة · ${st.lateMin} د</b></div><div class="kpi" style="--c:#e4572e"><small>غياب</small><b>${st.abs} يوم</b></div><div class="kpi" style="--c:#1f6fd1"><small>صافي مرتب الشهر</small><b>${fmt(pc.net)}</b></div></div>
  <div class="stat"><span>📅 تاريخ التعيين</span><b>${e.hire||'—'}${e.hire?' ('+Math.max(0,Math.floor((new Date()-new Date(e.hire))/864e5/30.4))+' شهر)':''}</b></div><div class="stat"><span>🎂 ميلاد</span><b>${e.birth||'—'}${bd!==null?' (بعد '+bd+' يوم)':''}</b></div><div class="stat"><span>📄 نهاية العقد</span><b>${e.contract||'—'}${e.contract&&daysTo(e.contract)<=30?' ⚠️':''}</b></div><div class="stat"><span>🏖 رصيد الإجازة السنوية</span><b>${(+H.leaveDays||21)-lv} من ${H.leaveDays||21} يوم</b></div><div class="stat"><span>💳 سلف متبقية</span><b>${fmt(adv)}</b></div>${e.loc?`<div class="stat"><span>🚚 العربية</span><b>${esc(locName(e.loc))}</b></div>`:''}<div class="stat"><span>💰 المرتب الأساسي</span><b>${fmt(e.salary||0)}</b></div></div>`}
  <div class="card"><h2>${n?'موظف جديد':'تعديل البيانات'}</h2><div class="row2">${F('name','الاسم')}${F('job','الوظيفة')}</div><div class="row2">${F('dept','القسم')}${F('phone','التليفون','tel')}</div><div class="row2">${F('nid','الرقم القومي')}${F('birth','تاريخ الميلاد','date')}</div><div class="row2">${F('hire','تاريخ التعيين','date')}${F('contract','نهاية العقد','date')}</div><div class="row2">${F('salary','المرتب الأساسي','number')}${F('allow','بدلات شهرية (تضاف للمرتب)','number')}</div><div class="row2">${F('emerg','تليفون طوارئ','tel')}<div><label>خصم التأخير والغياب تلقائي</label><select id="e_pen"><option value="yes" ${e.pen!=='no'?'selected':''}>مفعّل</option><option value="no" ${e.pen==='no'?'selected':''}>لا (بدون حضور)</option></select></div></div>${F('addr','العنوان')}
- <div class="row2"><div><label>الحالة</label><select id="e_st"><option ${e.st!=='موقوف'?'selected':''}>نشط</option><option ${e.st==='موقوف'?'selected':''}>موقوف</option></select></div><div><label>العربية / المكان (للسواق)</label><select id="e_loc"><option value="">—</option>${db.wh.map(w=>`<option value="w${w.id}" ${e.loc==='w'+w.id?'selected':''}>${esc(w.name)}</option>`).join('')}</select></div><div><label>مرتبط بمستخدم (للحضور)</label><select id="e_uid"><option value="">—</option>${db.users.map(u=>`<option value="${u.id}" ${e.uid==u.id?'selected':''}>${esc(u.name)}</option>`).join('')}</select></div></div>${F('notes','ملاحظات')}
+ <div class="row2"><div><label>الحالة</label><select id="e_st"><option ${e.st!=='موقوف'?'selected':''}>نشط</option><option ${e.st==='موقوف'?'selected':''}>موقوف</option></select></div><div><label>العربية / المكان (للسواق)</label><select id="e_loc"><option value="">—</option>${db.wh.map(w=>`<option value="w${w.id}" ${e.loc==='w'+w.id?'selected':''}>${esc(w.name)}</option>`).join('')}</select></div><div><label>تسجيل الحضور</label><select id="e_field"><option value="" ${e.field?'':'selected'}>جوه نطاق الشركة بس</option><option value="1" ${e.field?'selected':''}>من أي مكان (مندوب / سواق)</option></select></div><div><label>مرتبط بمستخدم (للحضور)</label><select id="e_uid"><option value="">—</option>${db.users.map(u=>`<option value="${u.id}" ${e.uid==u.id?'selected':''}>${esc(u.name)}</option>`).join('')}</select></div></div>${F('notes','ملاحظات')}
  <button class="btn" data-need="hr.manage" onclick="hrSaveEmp('${id}')">💾 حفظ</button>${n?'':`<button class="btn del" data-need="hr.manage" onclick="hrDelEmp(${e.id})">🗑 حذف الموظف</button>`}</div>`}
 function hrSaveEmp(id){const g=k=>($('#e_'+k)||{}).value||'';const name=g('name').trim();if(!name)return toast('اكتب اسم الموظف');
- const d={name,job:g('job').trim(),dept:g('dept').trim(),phone:g('phone').trim(),nid:g('nid').trim(),birth:g('birth'),hire:g('hire'),contract:g('contract'),salary:+g('salary')||0,allow:+g('allow')||0,pen:g('pen')||'yes',emerg:g('emerg').trim(),addr:g('addr').trim(),st:g('st'),uid:+g('uid')||0,loc:g('loc'),notes:g('notes').trim()};
+ const d={name,job:g('job').trim(),dept:g('dept').trim(),phone:g('phone').trim(),nid:g('nid').trim(),birth:g('birth'),hire:g('hire'),contract:g('contract'),salary:+g('salary')||0,allow:+g('allow')||0,pen:g('pen')||'yes',emerg:g('emerg').trim(),addr:g('addr').trim(),st:g('st'),uid:+g('uid')||0,field:g('field')?1:0,loc:g('loc'),notes:g('notes').trim()};
  if(id==='new'){d.id=nid('hr');db.staff.push(d);save();toast('اتضاف ✅');location.hash='#/hr/emp/'+d.id}else{Object.assign(hrEmp(id),d);save();toast('اتحفظ ✅');route()}}
 function hrDelEmp(id){if(!confirm('حذف الموظف وكل سجلاته؟'))return;db.staff=db.staff.filter(e=>e.id!=id);['hrded','hradv','hrlv','hratt','hrpay'].forEach(k=>db[k]=db[k].filter(x=>x.eid!=id));save();location.hash='#/hr/emps'}
 
@@ -1153,16 +1153,16 @@ function hrGeo(ok,no){if(!navigator.geolocation)return no('الجهاز مش ب�
  const fin=()=>{if(done)return;done=1;try{navigator.geolocation.clearWatch(wid)}catch(e){}clearTimeout(tm);best?ok(best):no('مقدرتش أجيب موقعك. فعّل الموقع (GPS) وسمح للمتصفح وجرّب تاني')};
  wid=navigator.geolocation.watchPosition(p=>{const c=p.coords;if(!best||c.accuracy<best.accuracy)best=c;if(c.accuracy<=25)fin()},e=>{if(e.code===1){done=1;clearTimeout(tm);try{navigator.geolocation.clearWatch(wid)}catch(x){}no('الموقع مرفوض. اسمح للمتصفح بالوصول للموقع من إعدادات الموبايل وجرّب تاني')}else if(!best)fin()},{enableHighAccuracy:true,maximumAge:0,timeout:15000});tm=setTimeout(fin,12000)}
 let HRBUSY=0;
-function hrCheck(kind){if(HRBUSY)return;const H=HRS(),e=+($('#at_e')||{}).value,msg=$('#at_msg');if(!e)return toast('اختار الموظف');
+function hrCheck(kind){if(HRBUSY)return;const H=HRS(),e=+($('#at_e')||{}).value,msg=$('#at_msg'),fld=!!(hrEmp(e)||{}).field;if(!e)return toast('اختار الموظف');
  if(kind==='out'&&!H.useOut)return toast('الانصراف متوقف من الإعدادات');
- if(H.lat===''||H.lon==='')return toast('موقع الشركة لسه متحددش. المدير يحدده من الإعدادات');
+ if(!fld&&(H.lat===''||H.lon===''))return toast('موقع الشركة لسه متحددش. المدير يحدده من الإعدادات');
  const td0=today(),r0=db.hratt.find(a=>a.eid==e&&a.date===td0);
  if(kind==='in'&&r0)return toast('الحضور متسجل النهارده الساعة '+r0.in);
  if(kind==='out'){if(!r0)return toast('مفيش حضور متسجل النهارده');if(r0.out)return toast('الانصراف متسجل الساعة '+r0.out)}
- HRBUSY=1;msg.className='alert';msg.textContent='جاري تحديد موقعك… استنى ثواني';
- hrGeo(c=>{HRBUSY=0;const d=Math.round(hrDist(+H.lat,+H.lon,c.latitude,c.longitude)),acc=Math.round(c.accuracy||0),td=today();
+ HRBUSY=1;msg.style.display='block';msg.className='alert';msg.textContent='جاري تحديد موقعك… استنى ثواني';
+ hrGeo(c=>{HRBUSY=0;const d=H.lat===''||H.lon===''?0:Math.round(hrDist(+H.lat,+H.lon,c.latitude,c.longitude)),acc=Math.round(c.accuracy||0),td=today();
   if(acc>(+H.acc||100)){msg.className='alert credit';msg.textContent='⚠️ دقة الموقع ضعيفة (±'+acc+' م). اطلع مكان مفتوح وفعّل GPS وجرّب تاني.';return}
-  if(d>(+H.radius||150)){msg.className='alert credit';msg.textContent='❌ إنت بعيد '+d+' متر عن الشركة (المسموح '+H.radius+' م). مينفعش تسجل من هنا.';return}
+  if(!fld&&d>(+H.radius||150)){msg.className='alert credit';msg.textContent='❌ إنت بعيد '+d+' متر عن الشركة (المسموح '+H.radius+' م). مينفعش تسجل من هنا.';return}
   const r=db.hratt.find(a=>a.eid==e&&a.date===td);
   if(kind==='in'){if(r)return toast('الحضور متسجل النهارده الساعة '+r.in);db.hratt.push({id:nid('hr'),eid:e,date:td,in:hrNow(),inD:d,inAcc:acc,by:db.me});const lm=hrMin(hrNow())-hrMin(H.start);save();toast(lm>(+H.grace||0)?'اتسجل حضور متأخر '+lm+' دقيقة':'اتسجل الحضور ✅');route()}
   else{if(!r)return toast('مفيش حضور متسجل النهارده');if(r.out)return toast('الانصراف متسجل الساعة '+r.out);r.out=hrNow();r.outD=d;save();toast('اتسجل الانصراف ✅');route()}},m=>{HRBUSY=0;msg.className='alert credit';msg.textContent=m})}
@@ -1236,6 +1236,16 @@ function hrSlip(id){head('قسيمة مرتب',true);const e=hrEmp(id);if(!e.id)
 function stDrvHtml(){HRS();const l=(typeof stLoc!=='undefined'&&stLoc!=='all')?[stLoc]:db.staff.filter(e=>e.loc&&e.st!=='موقوف').map(e=>e.loc);
  const ds=db.staff.filter(e=>e.loc&&e.st!=='موقوف'&&l.includes(e.loc));
  return ds.length?'<div class="s" style="margin-top:8px;font-size:13px">'+ds.map(e=>'🧑‍✈️ السواق: <b>'+esc(e.name)+'</b> · '+esc(locName(e.loc))+(e.phone?' · '+esc(e.phone):'')).join('<br>')+'</div>':''}
+
+/* حضور وانصراف سريع من الرئيسية لأي مستخدم مربوط ببطاقة موظف (مندوب / سواق / أمين مخزن / محاسب). التسجيل نفسه هو hrCheck (GPS + وقت + سينك) وبيدخل في تقرير التأخير والمرتبات */
+function hrMkFromUsers(){HRS();const us=db.users.filter(u=>!db.staff.some(e=>e.uid==u.id));if(!us.length)return toast('كل المستخدمين ليهم بطاقات');
+ if(!confirm('هيتعمل '+us.length+' بطاقة موظف (مرتب صفر، تسجيل من أي مكان للمناديب). تكمل؟'))return;
+ us.forEach(u=>db.staff.push({id:nid('hr'),name:u.name,job:({rep:'مندوب',keeper:'أمين مخزن',accountant:'محاسب'})[u.role]||'',salary:0,allow:0,pen:'yes',st:'نشط',uid:u.id,field:(u.emp||u.role==='rep')?1:0}));
+ save();toast('اتعملت ✅ كمّل المرتب لكل واحد');route()}
+const _dashAtt=R['/'];R['/']=()=>{const h=_dashAtt();HRS();const e=db.staff.find(x=>x.uid==db.me&&x.st!=='موقوف');if(!e)return h;const H=db.settings.hr,td=today(),r=db.hratt.find(a=>a.eid==e.id&&a.date===td);
+ const st=!r?'لسه ما سجلتش حضور النهارده':'🟢 حضور '+r.in+(r.out?' · 🔴 انصراف '+r.out:'');
+ const btn=!r?`<button class="btn" onclick="hrCheck('in')">🟢 تسجيل حضور</button>`:(H.useOut&&!r.out?`<button class="btn sec" onclick="hrCheck('out')">🔴 تسجيل انصراف</button>`:'<div class="s" style="color:#1c4b92">✅ تم تسجيل اليوم</div>');
+ return `<div class="card"><h2>⏱️ حضوري · ${hrNow()}</h2><input type="hidden" id="at_e" value="${e.id}"><div class="s" style="margin-bottom:8px">${esc(e.name)} · ${st}</div>${btn}<div id="at_msg" class="alert" style="margin-top:8px;display:none"></div></div>`+h};
 
 
 /* =====================================================================
