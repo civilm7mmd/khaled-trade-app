@@ -54,7 +54,7 @@ function expState(p){ if(!p.exp)return null; const d=Math.ceil((new Date(p.exp)-
 function toast(m){const t=document.createElement('div');t.className='toast';t.textContent=m;document.body.appendChild(t);setTimeout(()=>t.remove(),1800)}
 function head(title,back){ $('#hd').innerHTML=(back?'<button class="back" onclick="history.back()">رجوع ›</button>':'<img src="'+LOGO+'">')+'<h1>'+esc(title)+'</h1>'+(back?'':'<img src="'+LOGO+'" style="display:none">'); }
 function navbar(){const h=location.hash.slice(1)||'/';const on=p=>h===p||h.startsWith(p+'/')||h.startsWith(p+'?');
- const it=[['/','🏠','الرئيسية',null,['/']],['/invoices','🧾','الفواتير','sales.view',['/invoices','/invoice']],['/products','📦','المنتجات',['products.view','stock.view','sales.add','purchases.add'],['/products','/product']],['/customers','👥','العملاء','customers.view',['/customers','/customer']],['/more','☰','المزيد',null,['/more']]];
+ const it=[['/','🏠','الرئيسية',null,['/']],['/invoices','🧾','الفواتير','sales.view',['/invoices','/invoice']],['/products','📦','المنتجات',['products.view','stock.view','sales.add','purchases.add'],['/products','/product']],['/accounts','👥','الحسابات',['customers.view','suppliers.view'],['/accounts','/account','/customers','/customer','/suppliers','/supplier']],['/more','☰','المزيد',null,['/more']]];
  $('#nav').innerHTML=it.filter(x=>!x[3]||canAny(x[3])).map(x=>`<a href="#${x[0]}" class="${x[4].some(p=>p==='/'?h==='/':on(p))?'on':''}"><b>${x[1]}</b>${x[2]}</a>`).join('');}
 const R={};
 R['/']=()=>{head('خالد تريد');setTimeout(()=>{const h=document.querySelector('#hd');if(h&&!h.querySelector('.gear'))h.insertAdjacentHTML('beforeend','<button class="back gear" onclick="location.hash=\'#/settings\'">⚙️ الشركة</button>')},0);
