@@ -1770,9 +1770,13 @@ const KSY=(()=>{
    const salt=crypto.getRandomValues(new Uint8Array(16)),pl=JSON.stringify({e:email,p:apw,kb:c.kb,s:c.salt});
    await put('env_'+await eh(un),{s:{stringValue:b64(salt)},w:{stringValue:await seal(await dkey(pw,salt),te.encode(pl))}})},
   /* نسخ ظرف الدخول لاسم مستخدم جديد (لما اسم المستخدم يتغير من غير ما الباسورد يتكتب). الظرف مفيهوش الاسم، فبينفع نفس الباسورد */
-  async cpEnv(oldUn,newUn){if(String(oldUn).trim().toLowerCase()===String(newUn).trim().toLowerCase())return false;await auth();const m=await jf(FS+'/env_'+await eh(oldUn)+'?key='+FB.key);
+  async cpEnv(oldUn,newUn){if(String(oldUn).trim().toLowerCase()===String(newUn).trim().toLowerCase())return false;await auth();try{await jf(FS+'/env_'+await eh(newUn)+'?key='+FB.key);return false}catch(e){}const m=await jf(FS+'/env_'+await eh(oldUn)+'?key='+FB.key);
    await put('env_'+await eh(newUn),{s:{stringValue:m.fields.s.stringValue},w:{stringValue:m.fields.w.stringValue}});return true},
   /* تغيير باسورد المستخدم لنفسه: نعيد تغليف الظرف بالباسورد الجديد */
+  /* ظرف دخول لاسم/باسورد جديد من ظرف قديم معروف باسورده (من غير ما نعرف باسورد حساب المزامنة) */
+  async reseal(fromUn,fromPw,toUn,toPw){await auth();const m=await jf(FS+'/env_'+await eh(fromUn)+'?key='+FB.key);
+   const pl=td.decode(await open(await dkey(fromPw,unb(m.fields.s.stringValue)),m.fields.w.stringValue)),salt=crypto.getRandomValues(new Uint8Array(16));
+   await put('env_'+await eh(toUn),{s:{stringValue:b64(salt)},w:{stringValue:await seal(await dkey(toPw,salt),te.encode(pl))}})},
   async reEnv(un,oldPw,newPw){await auth();const h=await eh(un),m=await jf(FS+'/env_'+h+'?key='+FB.key);
    const pl=td.decode(await open(await dkey(oldPw,unb(m.fields.s.stringValue)),m.fields.w.stringValue)),salt=crypto.getRandomValues(new Uint8Array(16));
    await put('env_'+h,{s:{stringValue:b64(salt)},w:{stringValue:await seal(await dkey(newPw,salt),te.encode(pl))}})},
