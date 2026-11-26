@@ -459,8 +459,8 @@ function authSetup(){const old=Auth.legacyRaw()?true:false;let a={};try{a=old?(J
 async function authDoSetup(){const n=A$('st_n').value,u=A$('st_u').value,p=A$('st_p').value,c=A$('st_c').value,e=A$('st_e'),b=A$('st_b');e.textContent='';
  if(!n.trim()||!u.trim())return e.textContent='اكتب الاسم واسم المستخدم';if(/\s/.test(u.trim()))return e.textContent='اسم المستخدم من غير مسافات';const er=Auth.pwErr(p,u);if(er)return e.textContent=er;if(p!==c)return e.textContent='الباسورد وتأكيده مش زي بعض';
  b.disabled=true;b.textContent='جارِ التشفير…';try{const code=await Auth.setup(n,u,p);authRecShow(code,true)}catch(x){b.disabled=false;b.textContent='إنشاء الحساب وتشفير البيانات';e.textContent=x.message||'حصل خطأ'}}
-function authRecShow(code,first){authShell(`<h1>كود الاسترداد 🔑</h1><div class="sub">احفظه في مكان آمن (ورقة أو مدير باسوردات)</div><div class="code" id="rc">${esc(code)}</div>
- <div class="note">لو نسيت الباسورد، الكود ده هو الطريقة الوحيدة لفتح بياناتك المشفرة. مش هيظهر تاني. أي حد معاه الكود يقدر يفتح النظام.</div>
+function authRecShow(code,first){try{if(db&&db.settings){db.settings.recCode=code;save()}}catch(e){}authShell(`<h1>كود الاسترداد 🔑</h1><div class="sub">احفظه في مكان آمن (ورقة أو مدير باسوردات)</div><div class="code" id="rc">${esc(code)}</div>
+ <div class="note">لو نسيت الباسورد، الكود ده هو الطريقة الوحيدة لفتح بياناتك المشفرة. هتلاقيه دايماً في الإعدادات (🔒 الأمان) للمدير بس. أي حد معاه الكود يقدر يفتح النظام.</div>
  <button class="btn sec" type="button" onclick="navigator.clipboard&&navigator.clipboard.writeText('${esc(code)}').then(()=>toast('اتنسخ ✅'))">📋 نسخ الكود</button>
  <label class="chk" style="display:flex;gap:8px;align-items:center;margin-top:12px"><input type="checkbox" id="rc_ok" style="width:auto" onchange="A$('rc_b').disabled=!this.checked"> حفظت الكود</label><button class="btn" id="rc_b" disabled onclick="${first?'authAfterSetup()':'postInit();route()'}">${first?'ابدأ':'تمام'}</button>`)}
 function authAfterSetup(){postInit();welcome();route()}
@@ -526,6 +526,15 @@ const _oaGate=outAuto;outAuto=function(){gateDel();_oaGate()};
 gateDel();
 /* الحذف للمدير بس: إعادة التغليف بعد تحميل كل السكربتات (لأن بعضها بيعيد تعريف الدوال) */
 window.addEventListener('load',()=>{try{gateDel()}catch(e){}});
+
+/* ---------- 🔑 كود الاسترداد في الإعدادات: للمدير بس، دايماً ظاهر (👁 إظهار + نسخ) ---------- */
+const recIsMgr=()=>(me().perms||[]).includes('*');
+const _rsRec=R['/settings'];R['/settings']=()=>{const h=_rsRec();if(DEMO||!Auth.on()||!recIsMgr())return h;const c=(db.settings||{}).recCode;
+ return h+`<div class="card"><h2>🔑 كود الاسترداد (للمدير بس)</h2>`+(c?
+  `<div class="s" style="color:var(--mut);margin-bottom:8px">لو نسيت باسورد المدير، الكود ده بيفتح النظام. متقولوش لأي حد.</div><div style="display:flex;gap:8px;align-items:center"><span id="rec_v" dir="ltr" data-v="0" style="flex:1;font-family:monospace;font-size:15px;letter-spacing:1px">••••-••••-••••-••••-••••</span><button type="button" class="chipb" style="font-size:18px;padding:4px 12px" onclick="recEye()">👁 إظهار</button><button type="button" class="chipb" style="font-size:16px;padding:4px 12px" onclick="recCopy()">📋 نسخ</button></div>`
+  :`<div class="s" style="color:var(--mut);margin-bottom:8px">الكود الحالي اتعمل قبل كده ومش متخزن للعرض (مفيش طريقة نقراه). اضغط هنا يعمل كود جديد يفضل ظاهر هنا دايماً (الكود القديم هيتلغي).</div><button class="btn" onclick="authNewRec()">🔑 إنشاء كود جديد يفضل ظاهر</button>`)+`</div>`};
+function recEye(){if(!recIsMgr())return;const c=(db.settings||{}).recCode,el=document.getElementById('rec_v');if(!c||!el)return;const on=el.dataset.v==='1';el.dataset.v=on?'0':'1';el.textContent=on?'••••-••••-••••-••••-••••':c}
+function recCopy(){if(!recIsMgr())return;const c=(db.settings||{}).recCode;if(!c)return;navigator.clipboard&&navigator.clipboard.writeText(c).then(()=>toast('اتنسخ ✅'))}
 
 
 const needLogin=()=>!DEMO&&!Auth.ok();
