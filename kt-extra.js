@@ -123,6 +123,7 @@ function saveInvoice(){const L=draft.lines.filter(l=>l.pid&&l.qty>0);if(!L.lengt
  const mx=+me().maxDisc||0;if(mx&&(ad<0||manD.length)){const gross=L.reduce((a,l)=>a+l.qty*l.price,0),dt=manD.reduce((a,l)=>a+l.qty*l.price*l.disc/100,0)-ad;if(dt>gross*mx/100+.01)return toast('أقصى خصم مسموح لك '+mx+'%')}
  const items=lineItems(L),t=dTotal();
  if(draft.q)return saveQuote(items,sb,ad,t);
+ if(!draft.edit&&!can('sales.add'))return toast('مش مسموح لك تعمل فاتورة بيع');
  const loc=dLoc(),old=draft.edit&&db.invoices.find(x=>x.id==draft.edit.id);
  const need={};items.forEach(i=>need[i.pid]=(need[i.pid]||0)+i.qty);
  const back=pid=>old&&(old.loc||'w1')===loc?old.items.filter(i=>i.pid==pid).reduce((a,i)=>a+i.qty,0):0;
