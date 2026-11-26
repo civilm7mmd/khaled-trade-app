@@ -342,9 +342,11 @@ const Auth=(()=>{
  const loadDb=async()=>{const r=localStorage.getItem('kt_dbe');if(!r)return null;return JSON.parse(new TextDecoder().decode(await open(DK,JSON.parse(r).d)))};
  const stash=()=>{try{sessionStorage.setItem('kt_sk',JSON.stringify({u:uid,k:b64(dek),t:t0,l:la}))}catch(e){}};
  /* فتح الجلسة بعد التحقق من الباسورد */
- const unlock=async(raw,id,data)=>{dek=raw;DK=await dkey(raw);uid=id;t0=la=Date.now();
+ const unlock=async(raw,id,data,force)=>{dek=raw;DK=await dkey(raw);uid=id;t0=la=Date.now();
   if(data===undefined)data=await loadDb();
   if(data)db=data;ensure();const u=db.users.find(x=>x.id==uid);
+  /* force: السحابة (المصدر الأصلي) بتقول إن الحساب اتفعّل تاني، فنصلّح النسخة المحلية القديمة اللي لسه موقوف فيها */
+  if(force&&u&&u.active===false){u.active=true;try{(db.staff||[]).forEach(e=>{if(e.uid==id)(e.susp||[]).forEach(p=>{if(!p.to)p.to=new Date().toISOString().slice(0,10)})})}catch(x){}}
   if(!u||u.active===false){lock(true);throw new Error('off')}
   prev=u.last||0;u.last=Date.now();db.me=uid;db.users.forEach(x=>{delete x.ph});stash();persist(db)};
  const lock=(noReload)=>{dek=null;DK=null;uid=0;sessionStorage.removeItem('kt_sk');if(!noReload)location.reload()};
@@ -371,7 +373,12 @@ const Auth=(()=>{
    putKS(ks);['kt_db','kt_db_real','kt_demo'].forEach(x=>localStorage.removeItem(x));stash();fresh=true;return code},
   async login(un,pw){const w=wait();if(w)return{ok:false,msg:'محاولات كتير غلط. استنى '+w+' ثانية'};
    const ks=getKS();if(!ks)return{ok:false,msg:'النظام لسه مجهّزش'};const en=ks.u[low(un)];
-   try{if(!en){await kdf(pw,rnd(16),ks.it);throw 0}const raw=await open(await kdf(pw,unb(en.s),ks.it),en.w);okLogin();await unlock(raw,en.id);fresh=true;return{ok:true}}
+   try{if(!en){await kdf(pw,rnd(16),ks.it);throw 0}const raw=await open(await kdf(pw,unb(en.s),ks.it),en.w);okLogin();
+    try{await unlock(raw,en.id)}catch(x){
+     /* النسخة المحلية بتقول موقوف: نسأل السحابة. لو المدير فعّله تاني ندخله وننضّف النسخة المحلية */
+     if(!(x&&x.message==='off'))throw x;let cu=null;try{const q=await KSY.envLogin(un,pw);cu=(q.data.users||[]).find(y=>y.id==en.id)}catch(z){}
+     if(cu&&cu.active!==false)await unlock(raw,en.id,undefined,true);else throw x}
+    fresh=true;return{ok:true}}
    catch(e){if(e&&e.message==='off')return{ok:false,msg:'الحساب ده موقوف. كلم المدير'};fail();const w2=wait();return{ok:false,msg:w2?'محاولات كتير غلط. استنى '+w2+' ثانية':'اسم المستخدم أو الباسورد غلط. اكتب اسم المستخدم بالظبط (حروف إنجليزي من غير مسافات) والباسورد (الحروف الكبيرة والصغيرة مهمة)'}}},
   async resume(){let s;try{s=JSON.parse(sessionStorage.getItem('kt_sk')||'null')}catch(e){}if(!s)return false;
    const n=Date.now();t0=s.t;la=s.l;if(n-s.l>idleMs0()||n-s.t>12*3600e3){sessionStorage.removeItem('kt_sk');return false}
