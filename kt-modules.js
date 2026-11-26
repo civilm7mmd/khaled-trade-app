@@ -280,7 +280,7 @@ function ufSecT(id,t){(uf.u.commSecT=uf.u.commSecT||{})[id]=t}
 function ufProdT(id,t){(uf.u.commProdT=uf.u.commProdT||{})[id]=t}
 function ufAddProd(){const p=db.products.find(x=>x.name===$('#cp_n').value.trim());if(!p||$('#cp_v').value==='')return toast('اختار المنتج واكتب القيمة');uf.u.commProd[p.id]=+$('#cp_v').value;(uf.u.commProdT=uf.u.commProdT||{})[p.id]=$('#cp_t').value;ufDraw()}
 async function saveUser(id){const u=uf.u;if(!u.name.trim()||!u.username.trim())return toast('اكتب الاسم واسم المستخدم');if(db.users.some(x=>x.username===u.username.trim()&&x.id!=id))return toast('اسم المستخدم مستخدم قبل كده');
- u.name=u.name.trim();u.username=u.username.trim();const pw=$('#u_pw').value;u.active=true;if(pw){const e=Auth.pwErr(pw,u.username);if(e)return toast(e)}
+ u.name=u.name.trim();u.username=u.username.trim();const pw=$('#u_pw').value;u.active=(id==='new')||((db.users.find(x=>x.id==id)||{}).active!==false);if(pw){const e=Auth.pwErr(pw,u.username);if(e)return toast(e)}
  if(id==='new'){u.id=nid('user')+1;db.users.push(u)}else{const i=db.users.findIndex(x=>x.id==id);u.id=db.users[i].id;delete u.ph;db.users[i]=u}
  save();uf=null;if(!(await userPass(u,pw)))return;toast(pw||DEMO||Auth.hasPass(u.id)?'تم الحفظ ✅':'اتحفظ. حدد له باسورد علشان يقدر يدخل');location.hash=u.emp?'#/reps':'#/users'}
 function delUser(id){if(!DEMO&&id==Auth.uid)return toast('مينفعش تحذف حسابك وانت داخل بيه');if(confirm('تحذف المستخدم؟')){Auth.removeUser(id);db.users=db.users.filter(u=>u.id!=id);if(db.me==id)db.me=1;uf=null;save();location.hash='#/users'}}
