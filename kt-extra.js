@@ -1803,7 +1803,7 @@ const KSY=(()=>{
    if(m){if(((db.products||[]).length||(db.customers||[]).length)&&!confirm('بيانات الجهاز ده هتتستبدل ببيانات السحابة. تكمل؟')){delete db.sync;raw();return}safety();await pull(m);setS('ok')}
    else{db.sync.dirty=true;raw();await sync(true)}
    pill()},
-  disconnect(){delete db.sync;tok='';raw();pill();api.draw()},
+  disconnect(){if(typeof DEMO==='undefined'||!DEMO)return;delete db.sync;tok='';raw();pill();api.draw()},
   async keepMine(){const c=cfg();if(!c)return;if(!confirm('هترفع نسخة الجهاز ده وتستبدل نسخة السحابة. تكمل؟'))return;c.force=1;c.dirty=true;await sync(true);api.draw()},
   async takeCloud(){const c=cfg();if(!c)return;if(!confirm('هتاخد نسخة السحابة وتمسح تغييرات الجهاز ده اللي ما اترفعتش. تكمل؟'))return;c.dirty=false;c.base=0;await sync(true);api.draw()},
   draw(){const a=document.getElementById('app');if(a&&location.hash==='#/sync')a.innerHTML=R['/sync']()}
@@ -1820,7 +1820,7 @@ R['/sync']=()=>{head('المزامنة السحابية',true);const c=db.sync,s
  const lbl={ok:'✅ متزامن',sync:'🔄 بيتزامن…',off:'📴 أوفلاين (التغييرات محفوظة وهتترفع لما النت يرجع)',err:'⚠️ '+(s.m||'مشكلة'),conflict:'⚠️ تعارض: الجهاز والسحابة اتغيروا'}[s.s]||'…';
  return `<div class="card"><h2>☁️ المزامنة السحابية</h2><div class="stat"><span>الحالة</span><b>${lbl}</b></div><div class="stat"><span>آخر مزامنة</span><b>${ksyAgo(s.t)}</b></div><div class="stat"><span>الحساب</span><b dir="ltr">${esc(c.email)}</b></div><div class="stat"><span>تغييرات لسه ما اترفعتش</span><b>${c.dirty?'فيه':'مفيش'}</b></div>
   ${s.s==='conflict'?`<div class="note" style="margin:8px 0">الجهاز ده وسحابة جوجل اتغيروا الاتنين من آخر مزامنة. اختار نسخة واحدة. مفيش حاجة بتتمسح من غير اختيارك.</div><button class="btn" onclick="KSY.keepMine()">ارفع نسخة الجهاز ده</button><button class="btn sec" onclick="KSY.takeCloud()">خد نسخة السحابة</button>`:`<button class="btn" onclick="KSY.sync(true).then(()=>KSY.draw())">🔄 زامن دلوقتي</button>`}
-  <button class="btn sec" onclick="if(confirm('هتفصل المزامنة عن الجهاز ده. البيانات هتفضل عليه. تكمل؟'))KSY.disconnect()">فصل المزامنة</button></div>`};
+  </div>`};
 async function ksyConnect(){const b=document.getElementById('ky_b'),e=document.getElementById('ky_er');e.textContent='';b.disabled=true;b.textContent='جارِ الربط…';KSY._ed=1;
  try{await KSY.connect(document.getElementById('ky_e').value,document.getElementById('ky_p').value,document.getElementById('ky_d').value);KSY._ed=0;toast('اتربطت المزامنة ✅');route()}
  catch(x){KSY._ed=0;b.disabled=false;b.textContent='ربط المزامنة';e.textContent=x.message||'حصلت مشكلة'}}
