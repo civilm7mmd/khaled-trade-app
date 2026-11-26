@@ -464,7 +464,7 @@ function welcome(){document.body.classList.remove('authb');const u=me(),first=St
 /* ---------- تهيئة النظام بعد فتح البيانات ---------- */
 function postInit(){db.settings=db.settings||{name:'خالد تريد',sub:'أسمدة · مبيدات · مستلزمات زراعية',phone:'',addr:'سيدي سالم'};if(!db.settings.phone)db.settings.phone='';db.payments=db.payments||[];db.seq=db.seq||{};db.seq.pay=db.seq.pay||0;db.board=db.board||[];
  db.customers.forEach(c=>{if(c.open===undefined){c.open=(c.balance||0)-db.invoices.filter(i=>i.cid==c.id).reduce((a,i)=>a+i.rem,0)}});
- ensure();applySettings();autoSeed();checkInst();if(db.settings.logo)LOGO=db.settings.logo;document.body.classList.remove('authb')}
+ ensure();applySettings();autoSeed();if(typeof checkInst==="function")checkInst();if(db.settings.logo)LOGO=db.settings.logo;document.body.classList.remove('authb')}
 /* ---------- حماية الدوال الحساسة (بجانب إخفاء الشاشات والأزرار) ---------- */
 (()=>{const G={saveUser:'users.manage',delUser:'users.manage',saveSettings:'settings.edit',backupExport:'settings.edit',backupImport:'settings.edit',startDemo:'settings.edit',addNote:'users.manage',saveNote:'users.manage',delNote:'users.manage',authNewRec:'users.manage'};
  Object.keys(G).forEach(n=>{const f=window[n];if(typeof f!=='function')return;window[n]=function(...a){if(!DEMO&&!can(G[n]))return toast('🔒 مش مسموح لك بالإجراء ده');return f.apply(this,a)}})})();
