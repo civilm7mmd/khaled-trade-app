@@ -1007,7 +1007,7 @@ function empSync(h){if(typeof can!=='function'||!can('hr.manage')||!db.users)ret
 const hrMin=t=>{const [h,m]=String(t||'0:0').split(':');return (+h||0)*60+(+m||0)};
 const hrNow=()=>{const d=new Date();return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0')};
 const hrEmp=id=>db.staff.find(x=>x.id==id)||{};
-const hrOpts=(sel,all)=>(all?`<option value="">${all}</option>`:'')+db.staff.filter(e=>e.st!=='موقوف').map(e=>`<option value="${e.id}" ${sel==e.id?'selected':''}>${esc(e.name)}</option>`).join('');
+const hrOpts=(sel,all)=>(all?`<option value="">${all}</option>`:'')+db.staff.filter(e=>!hrOffE(e)).map(e=>`<option value="${e.id}" ${sel==e.id?'selected':''}>${esc(e.name)}</option>`).join('');
 const hrDist=(a,b,c,d)=>{const R=6371000,r=x=>x*Math.PI/180,dl=r(c-a),dn=r(d-b),h=Math.sin(dl/2)**2+Math.cos(r(a))*Math.cos(r(c))*Math.sin(dn/2)**2;return 2*R*Math.asin(Math.sqrt(h))};
 let HRM=today().slice(0,7);
 const hrDays=(m)=>{const [y,mo]=m.split('-').map(Number),n=new Date(y,mo,0).getDate(),o=[];for(let i=1;i<=n;i++)o.push(m+'-'+String(i).padStart(2,'0'));return o};
@@ -1015,7 +1015,7 @@ const onLeave=(eid,d)=>db.hrlv.some(l=>l.eid==eid&&l.st==='معتمدة'&&l.from
 /* إحصائيات الحضور لموظف في فترة */
 function attStats(e,from,to){const H=HRS(),td=today();let pres=0,late=0,lateMin=0,abs=0,early=0,leave=0,noOut=0;
  const dates=[];for(let t=new Date(from+'T12:00:00Z');t.toISOString().slice(0,10)<=to;t.setUTCDate(t.getUTCDate()+1))dates.push(t.toISOString().slice(0,10));
- dates.forEach(d=>{if(d>td||(e.hire&&d<e.hire))return;const dow=new Date(d+'T12:00:00Z').getUTCDay();if((H.off||[]).includes(dow))return;
+ dates.forEach(d=>{if(d>td||(e.hire&&d<e.hire)||hrSuspDay(e,d))return;const dow=new Date(d+'T12:00:00Z').getUTCDay();if((H.off||[]).includes(dow))return;
   const r=db.hratt.find(a=>a.eid==e.id&&a.date===d);
   if(r){pres++;const lm=hrMin(r.in)-hrMin(H.start);if(lm>(+H.grace||0)){late++;lateMin+=lm}if(H.useOut){if(r.out&&hrMin(r.out)<hrMin(H.end))early++;if(!r.out&&d<td)noOut++}}
   else if(onLeave(e.id,d))leave++;
@@ -1050,7 +1050,7 @@ R['/hr']=(sub,id)=>{HRS();const sg=location.hash.slice(1).split('?')[0].split('/
 Object.assign(ROUTE_PERM,{'/hr':'hr.view'});
 
 /* ---------- بطاقات الموظفين ---------- */
-function hrEmps(){head('بطاقات الموظفين',true);const act=db.staff.filter(e=>e.st!=='موقوف');
+function hrEmps(){head('بطاقات الموظفين',true);const act=db.staff.filter(e=>!hrOffE(e));
  return `<button class="btn" data-need="hr.manage" onclick="location.hash='#/hr/emp/new'">＋ موظف جديد</button><div class="mg" style="margin-top:10px">${db.staff.map(e=>`<a class="mgc" href="#/hr/emp/${e.id}"><i>${esc((e.name||'?')[0])}</i><b>${esc(e.name)}</b><small>${esc(e.job||'')}${e.dept?' · '+esc(e.dept):''}</small><small>${e.hire?'📅 تعيين '+e.hire:''}</small><em>${e.st==='موقوف'?'موقوف':'نشط'}</em>${hrLoginBtn(e)}</a>`).join('')||'<div class="empty">لسه مفيش موظفين. دوس "موظف جديد".</div>'}</div>`}
 function hrEmp1(id){head('بطاقة موظف',true);const H=HRS(),n=id==='new',e=n?{st:'نشط'}:hrEmp(id);if(!n&&!e.id)return nf();
  const m=today().slice(0,7),st=n?null:attStats(e,m+'-01',today()),pc=n?null:payCalc(e,m);
@@ -1062,7 +1062,7 @@ function hrEmp1(id){head('بطاقة موظف',true);const H=HRS(),n=id==='new',
  <div class="kpis" style="margin-top:10px"><div class="kpi" style="--c:#2b5aa1"><small>حضور الشهر</small><b>${st.pres} يوم</b></div><div class="kpi" style="--c:#f0a500"><small>تأخير</small><b>${st.late} مرة · ${st.lateMin} د</b></div><div class="kpi" style="--c:#e4572e"><small>غياب</small><b>${st.abs} يوم</b></div><div class="kpi" style="--c:#1f6fd1"><small>صافي مرتب الشهر</small><b>${fmt(pc.net)}</b></div></div>
  <div class="stat"><span>📅 تاريخ التعيين</span><b>${e.hire||'—'}${e.hire?' ('+Math.max(0,Math.floor((new Date()-new Date(e.hire))/864e5/30.4))+' شهر)':''}</b></div><div class="stat"><span>🎂 ميلاد</span><b>${e.birth||'—'}${bd!==null?' (بعد '+bd+' يوم)':''}</b></div><div class="stat"><span>📄 نهاية العقد</span><b>${e.contract||'—'}${e.contract&&daysTo(e.contract)<=30?' ⚠️':''}</b></div><div class="stat"><span>🏖 رصيد الإجازة السنوية</span><b>${(+H.leaveDays||21)-lv} من ${H.leaveDays||21} يوم</b></div><div class="stat"><span>💳 سلف متبقية</span><b>${fmt(adv)}</b></div>${e.loc?`<div class="stat"><span>🚚 العربية</span><b>${esc(locName(e.loc))}</b></div>`:''}${(()=>{const u=e.uid&&db.users.find(x=>x.id==e.uid);return u?`<div class="stat"><span>🔐 مستخدم التطبيق</span><b><a onclick="location.hash='#/user/${u.id}'" style="color:var(--g3)">${esc(u.username||u.name)} · ${esc(((db.roles||[]).find(r=>r.id===u.role)||{}).name||u.role||'')} ↗</a></b></div><div class="stat"><span>📍 الأماكن المسموحة</span><b>${(u.locs||[]).map(l=>esc(locName(l))).join('، ')||'كل الأماكن'}</b></div>${u.emp||u.comm?`<div class="stat"><span>💹 عمولة الشهر</span><b>${fmt(pc.comm||0)}</b></div>`:''}`:''})()}<div class="stat"><span>💰 المرتب الأساسي</span><b>${fmt(e.salary||0)}</b></div></div>`}
  <div class="card"><h2>${n?'موظف جديد':'تعديل البيانات'}</h2><div class="row2">${F('name','الاسم')}${F('job','الوظيفة')}</div><div class="row2">${F('dept','القسم')}${F('phone','التليفون','tel')}</div><div class="row2">${F('nid','الرقم القومي')}${F('birth','تاريخ الميلاد','date')}</div><div class="row2">${F('hire','تاريخ التعيين','date')}${F('contract','نهاية العقد','date')}</div><div class="row2">${F('salary','المرتب الأساسي','number')}${F('allow','بدلات شهرية (تضاف للمرتب)','number')}</div><div class="row2">${F('emerg','تليفون طوارئ','tel')}<div><label>خصم التأخير والغياب تلقائي</label><select id="e_pen"><option value="yes" ${e.pen!=='no'?'selected':''}>مفعّل</option><option value="no" ${e.pen==='no'?'selected':''}>لا (بدون حضور)</option></select></div></div>${F('addr','العنوان')}
- <div class="row2"><div><label>الحالة</label><select id="e_st"><option ${e.st!=='موقوف'?'selected':''}>نشط</option><option ${e.st==='موقوف'?'selected':''}>موقوف</option></select></div><div><label>العربية / المكان (للسواق)</label><select id="e_loc"><option value="">—</option>${db.wh.map(w=>`<option value="w${w.id}" ${e.loc==='w'+w.id?'selected':''}>${esc(w.name)}</option>`).join('')}</select></div><div><label>تسجيل الحضور</label><select id="e_field"><option value="" ${e.field?'':'selected'}>جوه نطاق الشركة بس</option><option value="1" ${e.field?'selected':''}>من أي مكان (مندوب / سواق)</option></select></div><input type="hidden" id="e_uid" value="${e.uid||''}"><div></div></div>${F('notes','ملاحظات')}
+ <div class="row2"><div><label>الحالة</label><select id="e_st"><option ${!hrOffE(e)?'selected':''}>نشط</option><option ${e.st==='موقوف'?'selected':''}>موقوف</option></select></div><div><label>العربية / المكان (للسواق)</label><select id="e_loc"><option value="">—</option>${db.wh.map(w=>`<option value="w${w.id}" ${e.loc==='w'+w.id?'selected':''}>${esc(w.name)}</option>`).join('')}</select></div><div><label>تسجيل الحضور</label><select id="e_field"><option value="" ${e.field?'':'selected'}>جوه نطاق الشركة بس</option><option value="1" ${e.field?'selected':''}>من أي مكان (مندوب / سواق)</option></select></div><input type="hidden" id="e_uid" value="${e.uid||''}"><div></div></div>${F('notes','ملاحظات')}
  ${n?'':hrLoginCard(e)}${n?'':hrCarCard(e)}<button class="btn" data-need="hr.manage" onclick="hrSaveEmp('${id}')">💾 حفظ</button>${n?'':`<button class="btn del" data-need="hr.manage" onclick="hrDelEmp(${e.id})">🗑 حذف الموظف</button>`}</div>`}
 function hrSaveEmp(id){const g=k=>($('#e_'+k)||{}).value||'';const name=g('name').trim();if(!name)return toast('اكتب اسم الموظف');
  const d={name,job:g('job').trim(),dept:g('dept').trim(),phone:g('phone').trim(),nid:g('nid').trim(),birth:g('birth'),hire:g('hire'),contract:g('contract'),salary:+g('salary')||0,allow:+g('allow')||0,pen:g('pen')||'yes',emerg:g('emerg').trim(),addr:g('addr').trim(),st:g('st'),uid:+g('uid')||0,field:g('field')?1:0,loc:g('loc'),notes:g('notes').trim()};
@@ -1096,7 +1096,7 @@ function hrAtt(){head('الحضور والانصراف',true);const H=HRS(),td=t
  const stat=(e,d)=>{const r=db.hratt.find(a=>a.eid==e.id&&a.date===d),lm=r?hrMin(r.in)-hrMin(H.start):0,dow=new Date(d+'T12:00:00Z').getUTCDay();
   if(r)return lm>(+H.grace||0)?hrPill('متأخر '+lm+' د','warn'):hrPill('في الميعاد','ok');if(onLeave(e.id,d))return hrPill('إجازة');if((H.off||[]).includes(dow))return hrPill('عطلة');
   return d<td||hrMin(hrNow())>hrMin(H.start)+(+H.grace||0)?hrPill('غياب','bad'):hrPill('لسه')};
- const rows=(d)=>db.staff.filter(e=>e.st!=='موقوف'&&(!e.hire||e.hire<=d)).map(e=>{const r=db.hratt.find(a=>a.eid==e.id&&a.date===d);
+ const rows=(d)=>db.staff.filter(e=>!hrOffE(e)&&!hrSuspDay(e,d)&&(!e.hire||e.hire<=d)).map(e=>{const r=db.hratt.find(a=>a.eid==e.id&&a.date===d);
   return `<div class="item" style="flex-wrap:wrap"><div class="main"><div class="t">${esc(e.name)} ${r&&r.man?'<span class="pill">يدوي</span>':''}</div><div class="s">${r?'🟢 '+r.in+(H.useOut?(r.out?' · 🔴 '+r.out:(d<td?' · ⚠️ نسي الانصراف':' · لسه موجود')):'')+(r.inD!==undefined?' · '+r.inD+' م':''):'—'}</div></div>${stat(e,d)}${canAll&&r?`<div style="width:100%" class="noprint"><button class="chipb" onclick="hrDelAtt(${r.id})">🗑 مسح السجل</button>${H.useOut&&r.out?`<button class="chipb" onclick="hrClearOut(${r.id})">↩️ إلغاء الانصراف</button>`:''}</div>`:''}</div>`}).join('')||'<div class="empty">ضيف موظفين الأول</div>';
  const ready=H.lat!==''&&H.lon!=='';
  return `<div class="card"><h2>📍 تسجيل الآن · ${td} · ${hrNow()}</h2>${(mine&&!canAll)?`<div class="s">${esc(mine.name)}</div><input type="hidden" id="at_e" value="${mine.id}">`:`<label>الموظف</label><select id="at_e">${hrOpts(mine&&mine.id)}</select>`}
@@ -1154,13 +1154,13 @@ function mapPick(){const H=HRS();const go=()=>{const o=document.createElement('d
  if(window.L)return go();const c=document.createElement('link');c.rel='stylesheet';c.href='https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';c.integrity='sha384-sHL9NAb7lN7rfvG5lfHpm643Xkcjzp4jFvuavGOndn6pjVqS6ny56CAt3nsEVT4H';c.crossOrigin='anonymous';document.head.appendChild(c);const sc=document.createElement('script');sc.src='https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';sc.integrity='sha384-cxOPjt7s7Iz04uaHJceBmS+qpjv2JkIHNVcuOrM+YHwZOmJGBXI00mdUXEq65HTH';sc.crossOrigin='anonymous';sc.onload=go;sc.onerror=()=>toast('الخريطة محتاجة إنترنت. استخدم موقعي الحالي أو اكتب الإحداثيات');document.body.appendChild(sc)}
 
 /* ---------- تقرير الحضور والتأخير ---------- */
-function attTable(from,to){const H=HRS(),U=!!H.useOut,rows=db.staff.filter(e=>e.st!=='موقوف').map(e=>{const t=attStats(e,from,to);return[esc(e.name),t.pres,t.late,t.lateMin,t.abs,...(U?[t.early,t.noOut]:[]),t.leave]});
+function attTable(from,to){const H=HRS(),U=!!H.useOut,rows=db.staff.filter(e=>!hrOffE(e)).map(e=>{const t=attStats(e,from,to);return[esc(e.name),t.pres,t.late,t.lateMin,t.abs,...(U?[t.early,t.noOut]:[]),t.leave]});
  if(!rows.length)return '<div class="empty">مفيش موظفين</div>';const sm=i=>rows.reduce((a,r)=>a+r[i],0);return rtbl(['الموظف','حضور','مرات تأخير','دقائق تأخير','غياب',...(U?['انصراف مبكر','نسي الانصراف']:[]),'إجازة'],rows,['الإجمالي','',sm(2),sm(3),sm(4),...(U?['','']:[]),''])}
 function hrAttRep(){head('تقرير الحضور والتأخير',true);const f=HRM+'-01',t=hrDays(HRM).slice(-1)[0];
  return `<div class="card noprint"><label>الشهر</label><input type="month" value="${HRM}" onchange="HRM=this.value;route()"></div><div class="card out"><h2>⏱️ الحضور والتأخير · ${HRM}</h2>${attTable(f,t<today()?t:today())}</div>`}
 
 /* ---------- المرتبات ---------- */
-function hrPay(){head('المرتبات',true);const list=db.staff.filter(e=>e.st!=='موقوف'),rows=list.map(e=>({e,c:payCalc(e,HRM)})),T=rows.reduce((s,r)=>s+r.c.net,0),LT=rows.reduce((s,r)=>s+r.c.left,0);
+function hrPay(){head('المرتبات',true);const list=db.staff.filter(e=>!hrOffE(e)),rows=list.map(e=>({e,c:payCalc(e,HRM)})),T=rows.reduce((s,r)=>s+r.c.net,0),LT=rows.reduce((s,r)=>s+r.c.left,0);
  return `<div class="card noprint"><label>الشهر</label><input type="month" value="${HRM}" onchange="HRM=this.value;route()"></div>
  <div class="card out"><h2>💵 مرتبات ${HRM} (الإجمالي ${fmt(T)} · المتبقي ${fmt(LT)})</h2>${rows.length?rtbl(['الموظف','أساسي+بدلات','عمولة/مكافأة','خصومات','سلفة','تأخير','غياب','الصافي','المصروف','المتبقي','الحالة'],rows.map(({e,c})=>[esc(e.name),fmt(c.base+c.allow),fmt((c.comm||0)+(c.bonus||0)),fmt(c.ded),fmt(c.inst),fmt(c.late),fmt(c.abs),`<b>${fmt(c.net)}</b>`,fmt(c.paid),c.left>0?`<b class="neg">${fmt(c.left)}</b>`:'0',`<a class="chipb noprint" href="#/hr/slip/${e.id}">🧾</a> `+(c.rec&&c.left<=0?'✅ اتصرف كامل':`<button class="chipb noprint" data-need="hr.manage" onclick="hrPayOut(${e.id})">${c.rec?'صرف دفعة':'صرف'}</button>`)])):'<div class="empty">ضيف موظفين الأول</div>'}</div><div class="s" style="color:var(--mut);font-size:12px">تقدر تصرف المرتب كله مرة واحدة أو على دفعات، والمتبقي بيتحسب لكل موظف. كل دفعة بتتسجل مصروف مرتبات في الخزينة، وخصم السلفة بيتحسب مرة واحدة مع أول دفعة.</div>`}
 function hrPayOut(id){const e=hrEmp(id),c=payCalc(e,HRM);if(c.rec&&c.left<=0)return toast('اتصرف كامل قبل كده');const left=c.left;
@@ -1180,7 +1180,7 @@ function hrPayDo(id,a){const e=hrEmp(id),c=payCalc(e,HRM);let rec=c.rec;
 /* ---------- ربط بالقوائم والتقارير والرئيسية ---------- */
 RT.push(['attlate','⏱️ الحضور والتأخير']);
 const _rbH=repBody;repBody=function(t,PR){if(t==='attlate'){HRS();return attTable(RP.from,RP.to)}return _rbH(t,PR)};
-const _dashHR=R['/'];R['/']=()=>{let h=_dashHR();if(!can('hr.view'))return h;HRS();const td=today(),H=db.settings.hr,A=db.staff.filter(e=>e.st!=='موقوف');if(!A.length)return h;
+const _dashHR=R['/'];R['/']=()=>{let h=_dashHR();if(!can('hr.view'))return h;HRS();const td=today(),H=db.settings.hr,A=db.staff.filter(e=>!hrOffE(e));if(!A.length)return h;
  let p=0,l=0,a=0;const late=[];A.forEach(e=>{const r=db.hratt.find(x=>x.eid==e.id&&x.date===td);if(r){p++;const m=hrMin(r.in)-hrMin(H.start);if(m>(+H.grace||0)){l++;late.push(e.name+' '+m+'د')}}else if(!onLeave(e.id,td)&&hrMin(hrNow())>hrMin(H.start)+(+H.grace||0))a++});
  return `<div class="card"><h2>👔 الحضور النهارده</h2><div class="kpis" style="grid-template-columns:repeat(3,1fr)"><div class="kpi" style="--c:#2b5aa1"><small>حاضر</small><b>${p}</b></div><div class="kpi" style="--c:#f0a500"><small>متأخر</small><b>${l}</b></div><div class="kpi" style="--c:#e4572e"><small>لم يحضر</small><b>${a}</b></div></div>${late.length?`<div class="s" style="color:var(--mut);margin-top:6px">⏰ ${esc(late.join(' · '))}</div>`:''}<button class="btn sec" onclick="location.hash='#/hr/att'">الحضور والانصراف ›</button></div>`+h};
 
@@ -1193,8 +1193,8 @@ function hrSlip(id){head('قسيمة مرتب',true);const e=hrEmp(id);if(!e.id)
 
 
 /* السواقين: الموظف المربوط بعربية (e.loc) بيظهر في شاشة المخزون عند اختيار العربية، ومرتبه من كشف المرتبات */
-function stDrvHtml(){HRS();const l=(typeof stLoc!=='undefined'&&stLoc!=='all')?[stLoc]:db.staff.filter(e=>e.loc&&e.st!=='موقوف').map(e=>e.loc);
- const ds=db.staff.filter(e=>e.loc&&e.st!=='موقوف'&&l.includes(e.loc));
+function stDrvHtml(){HRS();const l=(typeof stLoc!=='undefined'&&stLoc!=='all')?[stLoc]:db.staff.filter(e=>e.loc&&!hrOffE(e)).map(e=>e.loc);
+ const ds=db.staff.filter(e=>e.loc&&!hrOffE(e)&&l.includes(e.loc));
  return ds.length?'<div class="s" style="margin-top:8px;font-size:13px">'+ds.map(e=>'🧑‍✈️ السواق: <b>'+esc(e.name)+'</b> · '+esc(locName(e.loc))+(e.phone?' · '+esc(e.phone):'')).join('<br>')+'</div>':''}
 
 /* حضور وانصراف سريع من الرئيسية لأي مستخدم مربوط ببطاقة موظف. التسجيل نفسه هو hrCheck (GPS + وقت + سينك) وبيدخل في تقرير التأخير والمرتبات */
@@ -1231,7 +1231,7 @@ function hrMkLogin(eid,fresh){const e=hrEmp(eid);if(!e.id)return;window.__pendEm
  if(fresh)toast('اتحفظت بيانات الموظف. كمّل حساب الدخول');location.hash='#/user/new'}
 function hrSusp(id){const e=hrEmp(id),u=hrUsr(e);if(!e||!u||!hrCanSusp(e))return toast('مش مسموح');const off=u.active===false;
  if(!confirm(off?'تفعّل دخول '+e.name+'؟':'توقف دخول '+e.name+'؟ مش هيعرف يدخل لحد ما ترجعه، والبيانات محفوظة.'))return;
- u.active=off?true:false;try{audit(off?'تفعيل دخول':'إيقاف دخول',e.name)}catch(x){}save();toast(off?'اتفعّل ✅':'اتوقف الدخول ⏸');route()}
+ u.active=off?true:false;hrSuspMark(e,!off);try{audit(off?'تفعيل دخول':'إيقاف دخول',e.name)}catch(x){}save();toast(off?'اتفعّل ✅':'اتوقف الدخول ⏸');route()}
 /* لو حسابي اتوقف من جهاز تاني، بيخرّجني عند أول مزامنة */
 window.addEventListener('load',()=>{setInterval(()=>{try{const u=db&&db.users&&db.users.find(x=>x.id==db.me);if(u&&u.active===false&&window.Auth&&Auth.lock)Auth.lock()}catch(e){}},15000)});
 
@@ -1250,6 +1250,15 @@ window.addEventListener('load',()=>{
 /* رصيد سيارة الموظف (كان في صفحة المندوب): مخزن الموظف أو الأماكن المسموحة له */
 function hrCarCard(e){const u=hrUsr(e);const L=e.loc?[e.loc]:((u&&u.locs)||[]).filter(l=>l[0]==='c'||l[0]==='w');if(!L.length)return '';
  return `<div class="card"><h2>🚚 رصيد السيارة / المخزن</h2>${L.map(l=>{const it=db.products.filter(p=>qtyAt(l,p.id)>0);return `<div class="s" style="margin:6px 0"><b>${esc(locName(l))}</b></div>`+(it.slice(0,40).map(p=>`<div class="stat"><span>${esc(p.name)}</span><b>${fmt(qtyAt(l,p.id))} ${esc(p.unit||'')}</b></div>`).join('')||'<div class="empty">فاضية</div>')+(it.length>40?`<div class="s">وأكتر (${it.length-40}). شوف شاشة المخزون.</div>`:'')}).join('')}</div>`}
+
+/* ===== الموظف الموقوف دخوله: مفيش غياب ولا خصم تلقائي طول فترة الإيقاف، ويرجع الحساب لما يتفعّل (السجلات القديمة زي ما هي) =====
+   e.susp = [{from,to}] فترات الإيقاف (to فاضية = لسه موقوف) */
+function hrSuspMark(e,on){if(!e)return;e.susp=e.susp||[];const o=e.susp.find(p=>!p.to);if(on&&!o)e.susp.push({from:today()});if(!on&&o)o.to=today()}
+function hrSuspDay(e,d){try{const u=e.uid?db.users.find(x=>x.id==e.uid):null;if(u&&u.active===false&&!(e.susp||[]).some(p=>!p.to)){hrSuspMark(e,true);setTimeout(()=>{try{save()}catch(x){}},0)}}catch(x){}
+ return (e.susp||[]).some(p=>d>=p.from&&(!p.to||d<p.to))}
+
+/* موظف مش بيدخل الحسابات: موقوف كحالة موظف أو دخوله متوقف (بياناته كلها محفوظة، بس مش بيتحسب في المرتبات والحضور والغياب والتقارير) */
+function hrOffE(e){if(e.st==='موقوف')return true;const u=e.uid?db.users.find(x=>x.id==e.uid):null;return !!u&&u.active===false}
 
 /* ===== الحسابات: قائمة واحدة للعملاء والموردين =====
    الحساب ممكن يبقى عميل ومورد في نفس الوقت (فاتحين على بعض): رصيد واحد صافي وكشف واحد.
