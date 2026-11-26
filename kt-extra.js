@@ -1220,7 +1220,7 @@ function hrLoginCard(e){const u=hrUsr(e);
  if(!u)return can('users.manage')?`<div class="card noprint"><h2>🔐 حساب الدخول <span class="pill bad">مش متعمل</span></h2><div class="s" style="color:var(--mut);margin-bottom:8px">كل موظف لازم له حساب دخول. اعمله من هنا (اسم مستخدم وباسورد وصلاحيات).</div><button class="btn" onclick="hrMkLogin(${e.id})">➕ إنشاء حساب الدخول</button></div>`:'';
  const off=u.active===false,all=(u.perms||[]).includes('*');
  return `<div class="card noprint"><h2>🔐 حساب الدخول ${off?'<span class="pill bad">موقوف</span>':'<span class="pill ok">شغال</span>'}</h2>
- <div class="stat"><span>اسم المستخدم</span><b>${esc(u.username||'')}</b></div><div class="stat"><span>الصلاحيات</span><b>${all?'كل الصلاحيات':(u.perms||[]).length+' صلاحية'}</b></div>
+ <div class="stat"><span>اسم المستخدم</span><b>${esc(u.username||'')}</b></div>${hrPwRow(u)}<div class="stat"><span>الصلاحيات</span><b>${all?'كل الصلاحيات':(u.perms||[]).length+' صلاحية'}</b></div>
  <div class="s" style="color:var(--mut);margin:6px 0">${off?'الموظف مش قادر يدخل. بياناته وسجله محفوظين.':'إيقاف الدخول بيمنعه من التطبيق من غير ما يتمسح أي حاجة.'}</div>
  ${can('users.manage')?`<button class="btn sec" onclick="uf=null;location.hash='#/user/${u.id}'">🔑 الباسورد والصلاحيات والأماكن</button>`:''}
  ${hrCanSusp(e)?`<button class="btn ${off?'':'del'}" onclick="hrSusp(${e.id})">${off?'▶ تفعيل الدخول':'⏸ إيقاف الدخول'}</button>`:''}</div>`}
@@ -1259,6 +1259,13 @@ function hrSuspDay(e,d){try{const u=e.uid?db.users.find(x=>x.id==e.uid):null;if(
 
 /* موظف مش بيدخل الحسابات: موقوف كحالة موظف أو دخوله متوقف (بياناته كلها محفوظة، بس مش بيتحسب في المرتبات والحضور والغياب والتقارير) */
 function hrOffE(e){if(e.st==='موقوف')return true;const u=e.uid?db.users.find(x=>x.id==e.uid):null;return !!u&&u.active===false}
+
+/* 👁 إظهار الباسورد: للمدير بس. بيظهر الباسورد اللي اتحط من التطبيق (مخزن جوه ملف البيانات المشفر). الباسوردات القديمة مش بتظهر لأنها بصمة أحادية الاتجاه */
+const hrIsMgr=()=>(me().perms||[]).includes('*');
+function hrPwRow(u){if(!hrIsMgr())return '';
+ if(!u.pwv)return `<div class="stat"><span>الباسورد</span><b style="font-size:12px;color:var(--mut)">مش محفوظ للعرض. غيّره من 🔑 علشان يظهر هنا</b></div>`;
+ return `<div class="stat"><span>الباسورد</span><b style="display:flex;gap:8px;align-items:center"><span id="pwv_${u.id}" dir="ltr" data-v="0">••••••••</span><button type="button" class="chipb" aria-label="إظهار" onclick="hrPwEye(${u.id})">👁</button></b></div>`}
+function hrPwEye(id){if(!hrIsMgr())return;const u=db.users.find(x=>x.id==id),el=document.getElementById('pwv_'+id);if(!u||!el||!u.pwv)return;const on=el.dataset.v==='1';el.dataset.v=on?'0':'1';el.textContent=on?'••••••••':u.pwv}
 
 /* ===== الحسابات: قائمة واحدة للعملاء والموردين =====
    الحساب ممكن يبقى عميل ومورد في نفس الوقت (فاتحين على بعض): رصيد واحد صافي وكشف واحد.
