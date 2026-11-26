@@ -60,7 +60,7 @@ R['/doc']=k=>{const c=DOC_CFG[k];if(!c)return nf();if(!doc||doc.k!==k)doc=docNew
 function acParty(q){const c=DOC_CFG[doc.k];q=q.trim();let l;
  if(c.party==='sup')l=db.suppliers.filter(s=>!q||s.name.includes(q)||[s.phone,s.phone2,s.phone3].some(p=>p&&ad(p).includes(ad(q)))).slice(0,8).map(s=>`<div class="aco" onclick="pickParty(${s.id})"><b>${esc(s.name)}</b><span>${supBal(s)>0?'علينا '+fmt(supBal(s)):esc(s.phone||s.addr||'')}</span></div>`);
  else l=db.customers.filter(x=>cmatch(x,q)).slice(0,8).map(x=>`<div class="aco" onclick="pickParty(${x.id})"><b>${esc(x.name)}</b><span>${x.balance>0?'عليه '+fmt(x.balance):esc(x.phone||x.addr||'')}</span></div>`);
- showAc('d_pl',l)}
+ l=l.concat(c.party==='sup'?aclOnly('c',q).map(x=>`<div class="aco" onclick="pickPS(${x.id})"><b>${esc(x.name)}</b><span>${esc(x.phone||x.addr||'')}</span></div>`):aclOnly('s',q).map(x=>`<div class="aco" onclick="pickPC(${x.id})"><b>${esc(x.name)}</b><span>${esc(x.phone||x.addr||'')}</span></div>`));showAc('d_pl',l)}
 function pickParty(id){doc.party=id;const c=DOC_CFG[doc.k];$('#d_pq').value=c.party==='sup'?sname(id):cname(id);hideAc();if($('#dl'))dLines()}
 const adjTxt=(l,cur)=>{if(l.qty===undefined||l.qty==='')return '';const d=(+l.qty)-cur;return d===0?'مطابق ✔':(d>0?'زيادة +':'نقص −')+fmt(Math.abs(d))};
 function lastCost(sid,pid){for(let i=db.purchases.length-1;i>=0;i--){const v=db.purchases[i];if(v.party==sid){const it=v.items.find(x=>x.pid==pid);if(it)return it.price}}return null}

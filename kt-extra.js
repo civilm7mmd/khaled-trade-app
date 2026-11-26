@@ -1294,8 +1294,8 @@ function aclRows(){const q=ad(ACL.q).trim(),d=q.replace(/\D/g,'');
  if(ACL.f==='owe')l=l.filter(r=>r.n>0.5);else if(ACL.f==='due')l=l.filter(r=>r.n<-0.5);
  l.sort((x,y)=>Math.abs(y.n)-Math.abs(x.n)||aclName(x.a).localeCompare(aclName(y.a),'ar'));return l}
 function aclDraw(){const e=$('#acl');if(!e)return;const l=aclRows();
- e.innerHTML=l.length?l.map(({a,n})=>{const ph=(a.c||a.s).phone||'',role=a.c&&a.s?'عميل ومورد':a.c?'عميل':'مورد';
-  return `<div class="item" onclick="location.hash='#/account/${aclKey(a)}'"><div class="main"><div class="t">${esc(aclName(a))}</div><div class="s">${esc(ph)}${ph?' · ':''}${role}</div></div><div style="text-align:left"><div class="num ${n>0.5?'neg':''}">${fmt(Math.abs(n))}</div><div class="s">${n>0.5?'ج.م عليه':n<-0.5?'ج.م له':'متصفّر'}</div></div></div>`}).join(''):'<div class="empty">مفيش حسابات بالشكل ده</div>'}
+ e.innerHTML=l.length?l.map(({a,n})=>{const ph=(a.c||a.s).phone||'',role='';
+  return `<div class="item" onclick="location.hash='#/account/${aclKey(a)}'"><div class="main"><div class="t">${esc(aclName(a))}</div><div class="s">${esc(ph)}${role}</div></div><div style="text-align:left"><div class="num ${n>0.5?'neg':''}">${fmt(Math.abs(n))}</div><div class="s">${n>0.5?'ج.م عليه':n<-0.5?'ج.م له':'متصفّر'}</div></div></div>`}).join(''):'<div class="empty">مفيش حسابات بالشكل ده</div>'}
 function aclSet(k,v){ACL[k]=v;if(k==='f')route();else aclDraw()}
 R['/accounts']=()=>{head('الحسابات');const L=aclList().map(a=>aclNet(a));const owe=L.filter(n=>n>0.5).reduce((a,n)=>a+n,0),due=-L.filter(n=>n<-0.5).reduce((a,n)=>a+n,0);
  const ch=(k,t)=>`<button class="${ACL.f===k?'on':''}" onclick="aclSet('f','${k}')">${t}</button>`;
@@ -1309,19 +1309,18 @@ function aclEvents(a){const ev=[];if(a.c)custEv(a.c).forEach(e=>ev.push({...e}))
  if(a.s)supEv(a.s).forEach(e=>ev.push({d:e.d,t:e.t,desc:e.desc,db:e.cr,cr:e.db,link:e.link?(e.link.startsWith('pur')||e.link.startsWith('pret')?'rec/'+e.link:e.link):''}));
  ev.sort((x,y)=>(x.d||'').localeCompare(y.d||'')||(x.t||0)-(y.t||0));let b=0;ev.forEach(e=>{b+=e.db-e.cr;e.bal=b});return ev}
 R['/account']=id=>{
- if(id==='new'){head('حساب جديد',true);return `<div class="card"><div style="margin-bottom:10px">الحساب ده هيبقى:</div><div class="bar"><button onclick="location.hash='#/customer/new'">👤 بنبيع له</button><button onclick="location.hash='#/supplier/new'">🏭 بنشتري منه</button></div><div class="s" style="margin-top:10px;color:var(--mut)">تقدر بعد كده تخليه الاتنين من صفحة الحساب.</div></div>`}
+ if(id==='new'){head('حساب جديد',true);return `<div class="card"><div class="s" style="margin-bottom:10px">كل الحسابات زي بعض: تبيع لها وتشتري منها من نفس الصفحة.</div><button class="btn" onclick="location.hash='#/customer/new'">＋ إضافة حساب</button></div>`}
  const a=aclFind(id);if(!a){head('الحساب',true);return nf()}
  head(aclName(a),true);const n=aclNet(a),ev=aclEvents(a),x=a.c||a.s;
  const others=a.c&&!a.s?db.suppliers.filter(s=>!s.cid||!db.customers.some(c=>c.id==s.cid)):(!a.c&&a.s?db.customers.filter(c=>!c.sid||!db.suppliers.some(s=>s.id==c.sid)):[]);
  return `<div class="card"><div class="stat"><span>الرصيد</span><b class="${n>0.5?'neg':''}" style="font-size:20px">${fmt(Math.abs(n))} ج.م ${n>0.5?'عليه':n<-0.5?'له':''}</b></div>
- ${a.c&&a.s?`<div class="stat"><span>كعميل (عليه لينا)</span><b>${fmt(a.c.balance)}</b></div><div class="stat"><span>كمورد (علينا له)</span><b>${fmt(supBal(a.s))}</b></div><div class="s" style="color:var(--mut)">الرصيد الصافي = اللي عليه لينا ناقص اللي علينا له.</div>`:''}
+ ${a.c&&a.s?`<div class="stat"><span>مبيعات (عليه لينا)</span><b>${fmt(a.c.balance)}</b></div><div class="stat"><span>مشتريات (علينا له)</span><b>${fmt(supBal(a.s))}</b></div><div class="s" style="color:var(--mut)">الرصيد الصافي = اللي عليه لينا ناقص اللي علينا له.</div>`:''}
  <div class="s" style="margin-top:6px">${esc(x.phone||'')} ${esc(x.addr||'')}</div></div>
- <div class="bar">${a.c?`<button onclick="location.hash='#/invoice/new';draft.cid=${a.c.id}">🧾 فاتورة بيع</button>`:''}${a.s?`<button onclick="openDoc('pur',{party:${a.s.id}})">🛒 فاتورة شراء</button>`:''}</div>
- <div class="bar">${a.c?`<button onclick="location.hash='#/customer/${a.c.id}'">💵 تحصيل وبيانات العميل</button>`:''}${a.s?`<button onclick="location.hash='#/supplier/${a.s.id}'">💸 دفع وبيانات المورد</button>`:''}</div>
+ <div class="bar"><button onclick="aclSell('${aclKey(a)}')">🧾 فاتورة بيع</button><button onclick="aclBuy('${aclKey(a)}')">🛒 فاتورة شراء</button></div>
+ <div class="bar"><button onclick="aclColl('${aclKey(a)}')">💵 تحصيل وبيانات الحساب</button><button onclick="aclPay('${aclKey(a)}')">💸 دفع</button></div>
  <div class="card out"><h2>كشف الحساب</h2><table><tr><th>التاريخ</th><th>البيان</th><th>عليه</th><th>له</th><th>الرصيد</th></tr>${ev.map(e=>`<tr${e.link?` onclick="location.hash='#/${e.link}'" style="cursor:pointer"`:''}><td>${esc(e.d||'')}</td><td>${e.desc}</td><td>${e.db?fmt(e.db):''}</td><td>${e.cr?fmt(e.cr):''}</td><td>${fmt(e.bal)}</td></tr>`).join('')||'<tr><td colspan="5">مفيش حركات</td></tr>'}</table></div>
- ${can('users.manage')||can('customers.edit')?`<div class="card noprint"><h2>الربط</h2>${a.c&&a.s?`<div class="s">الحساب ده عميل ومورد.</div><button class="btn sec" onclick="aclUnlink('${aclKey(a)}')">فك الربط</button>`
-  :`<div class="s" style="margin-bottom:8px">${a.c?'الحساب ده عميل بس':'الحساب ده مورد بس'}.</div><button class="btn sec" onclick="aclMake('${aclKey(a)}')">${a.c?'خليه مورد كمان':'خليه عميل كمان'}</button>
-  ${others.length?`<label style="margin-top:10px">أو اربطه بـ${a.c?'مورد':'عميل'} موجود</label><select id="acc_o">${others.map(o=>`<option value="${o.id}">${esc(o.name)}</option>`).join('')}</select><button class="btn sec" onclick="aclLink('${aclKey(a)}')">ربط</button>`:''}`}</div>`:''}`};
+ ${(can('users.manage')||can('customers.edit'))&&(a.c&&a.s||others.length)?`<div class="card noprint"><h2>دمج الحسابات</h2>${a.c&&a.s?`<div class="s">الحساب ده مدموج برصيد وكشف واحد.</div><button class="btn sec" onclick="aclUnlink('${aclKey(a)}')">فك الدمج</button>`
+  :`<label>ادمجه مع حساب موجود (نفس الشخص)</label><select id="acc_o">${others.map(o=>`<option value="${o.id}">${esc(o.name)}</option>`).join('')}</select><button class="btn sec" onclick="aclLink('${aclKey(a)}')">دمج</button>`}</div>`:''}`};
 function aclLink2(c,s){c.sid=s.id;s.cid=c.id;delete c.nolink;delete s.nolink}
 function aclLink(key){const a=aclFind(key);if(!a)return;const v=+$('#acc_o').value;if(!v)return;
  if(a.c){const s=sup(v);if(s)aclLink2(a.c,s)}else{const c=cust(v);if(c)aclLink2(c,a.s)}save();toast('اتربط ✅');route()}
@@ -1334,6 +1333,29 @@ window.addEventListener('load',()=>{
  const go=(t)=>()=>{head('الحسابات');setTimeout(()=>{location.hash=t},0);return ''};
  R['/customers']=go('#/accounts');R['/suppliers']=go('#/accounts');
  const _ac=R['/accounts'];R['/accounts']=()=>{const h=_ac();setTimeout(aclDraw,0);return h}});
+
+/* ===== أي حساب يتعامل معاه بيع أو شراء أو سند: لو الحساب عميل بس واتعمل له شراء، بيتعمل له سجل مورد فاضي ومربوط (والعكس). الرصيد واحد صافي ===== */
+function aclMkSup(c){const p=aclList().find(a=>a.c&&a.c.id==c.id);if(p&&p.s)return p.s;
+ const s={id:nid('sup'),name:c.name,phone:c.phone||'',phone2:c.phone2||'',phone3:c.phone3||'',addr:c.addr||'',map:c.map||'',open:0,cid:c.id};db.suppliers.push(s);c.sid=s.id;return s}
+function aclMkCust(s){const p=aclList().find(a=>a.s&&a.s.id==s.id);if(p&&p.c)return p.c;
+ const c={id:++db.seq.c,name:s.name,phone:s.phone||'',phone2:s.phone2||'',phone3:s.phone3||'',addr:s.addr||'',type:'كاش',balance:0,open:0,sid:s.id};db.customers.push(c);s.cid=c.id;return c}
+/* حسابات مورد بس (ملهاش سجل عميل) / عميل بس (ملهاش سجل مورد) مطابقة للبحث */
+function aclOnly(side,q,all){q=ad(q||'').trim();const d=q.replace(/\D/g,'');
+ return aclList().filter(a=>side==='s'?(!a.c&&a.s):(a.c&&!a.s)).map(a=>a[side]).filter(x=>!q||x.name.includes(q)||(d.length>0&&[x.phone,x.phone2,x.phone3].filter(Boolean).some(p=>aclDig(p).includes(d)))).slice(0,all?9999:8)}
+function pickCS(sid){const s=db.suppliers.find(x=>x.id==sid);if(s)pickC(aclMkCust(s).id)}
+function pickPS(cid){const c=cust(cid);if(c)pickParty(aclMkSup(c).id)}
+function pickPC(sid){const s=db.suppliers.find(x=>x.id==sid);if(s)pickParty(aclMkCust(s).id)}
+/* اسم حساب (من القايمتين) -> سجل عميل/مورد، وبيعمل المقابل لو مش موجود */
+function aclByName(side,nm){nm=String(nm||'').trim();if(!nm)return null;
+ if(side==='c'){let c=db.customers.find(x=>x.name===nm);if(c)return c;const s=db.suppliers.find(x=>x.name===nm);return s?aclMkCust(s):null}
+ let s=db.suppliers.find(x=>x.name===nm);if(s)return s;const c=db.customers.find(x=>x.name===nm);return c?aclMkSup(c):null}
+
+/* أزرار صفحة الحساب: أي حساب يتباع له ويتشترى منه ويتحصّل منه ويتدفع له. السجل المقابل بيتعمل لوحده عند الحاجة */
+function aclSide(key,side){const a=aclFind(key);if(!a)return null;return side==='c'?(a.c||aclMkCust(a.s)):(a.s||aclMkSup(a.c))}
+function aclSell(key){const c=aclSide(key,'c');if(!c)return;save();location.hash='#/invoice/new';draft.cid=c.id}
+function aclBuy(key){const s=aclSide(key,'s');if(!s)return;save();openDoc('pur',{party:s.id})}
+function aclColl(key){const c=aclSide(key,'c');if(!c)return;save();location.hash='#/customer/'+c.id}
+function aclPay(key){const s=aclSide(key,'s');if(!s)return;save();location.hash='#/supplier/'+s.id}
 
 
 /* =====================================================================
@@ -1383,13 +1405,13 @@ R['/chq']=()=>{head('الشيكات',true);V2();const L=db.chq.filter(c=>c.t===C
  return `<div class="seg"><button class="${CHQ.t==='in'?'on':''}" onclick="CHQ.t='in';CHQ.s='';route()">📥 واردة (من العملاء)</button><button class="${CHQ.t==='out'?'on':''}" onclick="CHQ.t='out';CHQ.s='';route()">📤 صادرة (للموردين)</button></div>
  <div class="kpis" style="grid-template-columns:repeat(2,1fr)"><div class="kpi" style="--c:#f0a500"><small>${CHQ.t==='in'?'لسه ما اتحصلتش':'لسه ما اتدفعتش'}</small><b>${fmt(sum(L.filter(c=>!['محصل','مدفوع','راجع'].includes(c.st))))}</b></div><div class="kpi" style="--c:#e4572e"><small>مستحقة / خلال ٣ أيام</small><b>${due.filter(c=>c.t===CHQ.t).length}</b></div></div>
  <div class="card noprint"><h2>＋ شيك ${CHQ.t==='in'?'وارد':'صادر'}</h2><div class="row2"><input id="q_no" placeholder="رقم الشيك"><input id="q_bk" placeholder="البنك"></div><div class="row2"><input id="q_a" type="number" inputmode="decimal" placeholder="المبلغ"><div><label>تاريخ الاستحقاق</label><input id="q_d" type="date" value="${today()}"></div></div>
- <label>${CHQ.t==='in'?'العميل':'المورد'}</label><select id="q_p">${(CHQ.t==='in'?db.customers:db.suppliers).map(p=>`<option value="${p.id}">${esc(p.name)}</option>`).join('')}</select><label>${CHQ.t==='in'?'يتحصل في حساب':'يتدفع من حساب'}</label><select id="q_ac">${accOpts('')}</select><input id="q_n" placeholder="ملاحظة (اختياري)" style="margin-top:8px"><button class="btn" onclick="addChq()">حفظ الشيك</button></div>
+ <label>الحساب</label><select id="q_p">${(CHQ.t==='in'?db.customers:db.suppliers).map(p=>`<option value="${p.id}">${esc(p.name)}</option>`).join('')}${aclOnly(CHQ.t==='in'?'s':'c','',1).map(p=>`<option value="${CHQ.t==='in'?'s':'c'}${p.id}">${esc(p.name)}</option>`).join('')}</select><label>${CHQ.t==='in'?'يتحصل في حساب':'يتدفع من حساب'}</label><select id="q_ac">${accOpts('')}</select><input id="q_n" placeholder="ملاحظة (اختياري)" style="margin-top:8px"><button class="btn" onclick="addChq()">حفظ الشيك</button></div>
  <div class="chips noprint"><button class="${CHQ.s?'':'on'}" onclick="CHQ.s='';route()">الكل</button>${CHQ_S[CHQ.t].map(s=>`<button class="${CHQ.s===s?'on':''}" onclick="CHQ.s='${s}';route()">${s}</button>`).join('')}</div>
  <div class="card out"><h2>${CHQ.t==='in'?'📥 شيكات واردة':'📤 شيكات صادرة'}</h2>${sh.length?sh.map(c=>`<div class="item" style="flex-wrap:wrap"><div class="main"><div class="t">#${esc(c.no||'—')} · ${esc(chqParty(c))}</div><div class="s">${esc(c.bank||'')} · استحقاق ${c.due} · ${esc(accName(c.acct))}${c.note?' · '+esc(c.note):''}</div></div><div class="num">${fmt(c.amount)}</div><div style="width:100%" class="noprint">${chqPill(c)} ${chqBtns(c)}</div></div>`).join(''):'<div class="empty">مفيش شيكات</div>'}</div>`};
 function chqBtns(c){const B=(s,t,k)=>`<button class="chipb ${k||''}" onclick="chqSet(${c.id},'${s}')">${t}</button>`,D=`<button class="chipb" onclick="delChq(${c.id})">🗑</button>`;
  if(c.t==='in'){if(c.st==='معلق')return B('مودع','🏦 إيداع')+B('محصل','✅ تحصيل')+B('راجع','↩️ راجع')+D;if(c.st==='مودع')return B('محصل','✅ اتحصل')+B('راجع','↩️ راجع')+D;return B('معلق','↺ رجّعه معلق')+D}
  if(c.st==='معلق')return B('مدفوع','✅ اتصرف')+B('راجع','↩️ راجع')+D;return B('معلق','↺ رجّعه معلق')+D}
-function addChq(){V2();const a=+$('#q_a').value,p=+$('#q_p').value;if(!(a>0))return toast('اكتب المبلغ');if(!p)return toast('اختار '+(CHQ.t==='in'?'العميل':'المورد'));
+function addChq(){V2();const a=+$('#q_a').value,qv=String($('#q_p').value||'');let p=+qv;if(/^[cs]\d+$/.test(qv)){const id=+qv.slice(1);p=CHQ.t==='in'?aclMkCust(db.suppliers.find(x=>x.id==id)).id:aclMkSup(cust(id)).id}if(!(a>0))return toast('اكتب المبلغ');if(!p)return toast('اختار الحساب');
  db.chq.push({id:nid('chq'),t:CHQ.t,no:$('#q_no').value.trim(),bank:$('#q_bk').value.trim(),amount:a,due:$('#q_d').value||today(),party:p,acct:+$('#q_ac').value||0,note:$('#q_n').value.trim(),st:'معلق',date:today(),by:db.me});save();toast('اتسجل ✅');route()}
 function chqSet(id,st){V2();const c=db.chq.find(x=>x.id==id);if(!c)return;
  const undo=()=>{if(c.pay){db.payments=db.payments.filter(x=>x.id!==c.pay);c.pay=0}if(c.spay){db.spay=db.spay.filter(x=>x.id!==c.spay);c.spay=0}};

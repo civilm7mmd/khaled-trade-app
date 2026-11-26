@@ -82,14 +82,14 @@ R['/vchs']=()=>{head('سندات القبض والصرف',true);const L=vList().
 R['/vchnew']=k=>{k=k==='out'?'out':'in';if(!vOK(k))return nf();head(k==='in'?'سند قبض جديد':'سند صرف جديد',true);V2();
  const ps=k==='in'?db.customers:db.suppliers,us=db.users.filter(u=>u.active!==false);
  return `<div class="card"><label>التاريخ</label><input type="date" id="v_d" value="${today()}">
- <label>${k==='in'?'استلمنا من (العميل)':'دفعنا إلى (المورد)'}</label><input id="v_p" list="v_pl" autocomplete="off" placeholder="اكتب اسم ${k==='in'?'العميل':'المورد'}"><datalist id="v_pl">${ps.map(p=>`<option value="${esc(p.name)}">`).join('')}</datalist>
+ <label>${k==='in'?'استلمنا من (الحساب)':'دفعنا إلى (الحساب)'}</label><input id="v_p" list="v_pl" autocomplete="off" placeholder="اكتب اسم الحساب"><datalist id="v_pl">${aclList().map(a=>`<option value="${esc(aclName(a))}">`).join('')}</datalist>
  <label>المبلغ (ج.م)</label><input type="number" inputmode="decimal" id="v_a" placeholder="0">
  <label>${k==='in'?'الخزنة اللي دخل فيها':'الخزنة اللي خرج منها'}</label><select id="v_t">${accOpts('')}</select>
  <label>${k==='in'?'اللي استلم':'اللي دفع'}</label><select id="v_u">${us.map(u=>`<option value="${u.id}" ${u.id==db.me?'selected':''}>${esc(u.name)}</option>`).join('')}</select>
  <label>البيان (اختياري)</label><input id="v_n" placeholder="مثال: دفعة من الحساب">
  <button class="btn" onclick="vSave('${k}')">حفظ السند</button></div>`};
-function vSave(k){if(!vOK(k))return toast('مش مسموح');const ps=k==='in'?db.customers:db.suppliers,nm=$('#v_p').value.trim(),p=ps.find(x=>x.name===nm),a=+$('#v_a').value;
- if(!p)return toast('اختار '+(k==='in'?'العميل':'المورد')+' من القايمة');if(!(a>0))return toast('اكتب مبلغ صحيح');
+function vSave(k){if(!vOK(k))return toast('مش مسموح');const ps=k==='in'?db.customers:db.suppliers,nm=$('#v_p').value.trim(),p=ps.find(x=>x.name===nm)||aclByName(k==='in'?'c':'s',nm),a=+$('#v_a').value;
+ if(!p)return toast('اختار الحساب من القايمة');if(!(a>0))return toast('اكتب مبلغ صحيح');
  const acct=+$('#v_t').value||0,by=+$('#v_u').value||db.me,date=$('#v_d').value||today(),note=$('#v_n').value.trim(),id=nid('vch'),no=nid(k==='in'?'vin':'vout');
  if(k==='out'&&acct){const A=db.accts.find(x=>x.id==acct);if(A&&accBal(A)<a&&!confirm('رصيد '+A.name+' أقل من المبلغ. تكمل؟'))return}
  const v={id,no,k,date,ts:Date.now(),by,pk:k==='in'?'c':'s',pid:p.id,amount:a,acct,note};vList().push(v);

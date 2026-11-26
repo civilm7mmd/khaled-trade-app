@@ -68,7 +68,7 @@ R['/']=()=>{head('خالد تريد');setTimeout(()=>{const h=document.querySele
  <div class="stat"><span>مبيعات النهارده</span><b>${fmt(sales)} ج.م</b></div>
  <div class="stat" data-need="customers.view"><span>اللي ليك عند العملاء</span><b>${fmt(owed)} ج.م</b></div><div class="stat" data-need="cash.view"><span>رصيد الخزينة</span><b>${fmt(cashBal())} ج.م</b></div>
  <div class="stat"><span>عدد المنتجات</span><b>${db.products.length}</b></div>
- <div class="stat"><span>عدد العملاء</span><b>${db.customers.length}</b></div></div>
+ <div class="stat"><span>عدد الحسابات</span><b>${(typeof aclList==="function"?aclList().length:db.customers.length)}</b></div></div>
  ${ex.length?`<div class="alert">⚠️ <b>صلاحية:</b> ${ex.map(p=>esc(p.name)+' ('+expState(p).t+')').join('، ')}</div>`:''}
  ${low.length?`<div class="alert">📉 <b>نواقص:</b> ${low.map(p=>esc(p.name)+' ('+p.stock+')').join('، ')}</div>`:''}`;};
 R['/settings']=()=>{head('بيانات الشركة',true);const st=db.settings;return `<div class="card"><p style="color:var(--mut);font-size:13px;margin-top:0">دي البيانات اللي بتظهر في أعلى الفاتورة المطبوعة.</p><label>اسم الشركة</label><input id="s_name" value="${esc(st.name)}"><label>الوصف</label><input id="s_sub" value="${esc(st.sub||'')}"><label>رقم التليفون</label><input id="s_phone" type="tel" value="${esc(st.phone)}" placeholder="01xxxxxxxxx"><label>العنوان</label><input id="s_addr" value="${esc(st.addr)}"><button class="btn" onclick="db.settings={name:$('#s_name').value,sub:$('#s_sub').value,phone:$('#s_phone').value,addr:$('#s_addr').value};save();toast('تم الحفظ ✅');history.back()">حفظ</button></div>`};
@@ -155,7 +155,7 @@ function hideAc(){document.querySelectorAll('.acl').forEach(e=>e.style.display='
 document.addEventListener('click',e=>{if(!e.target.closest('.ac'))hideAc()});
 function showAc(id,items){const el=$('#'+id);if(!el)return;hideAc();if(!items.length){el.innerHTML='<div class="aco" style="color:#6b727c">مفيش نتيجة. سجّله الأول من صفحته</div>';}else el.innerHTML=items.join('');el.style.display='block';}
 function acCust(q){q=q.trim();const l=[];if(!q||'عميل نقدي'.includes(q))l.push('<div class="aco" onclick="pickC(0)"><b>عميل نقدي</b></div>');
- db.customers.filter(c=>cmatch(c,q)).slice(0,8).forEach(c=>l.push(`<div class="aco" onclick="pickC(${c.id})"><b>${esc(c.name)}</b><span>${c.balance>0?'عليه '+fmt(c.balance):esc(c.phone||c.addr||'')}</span></div>`));showAc('i_cl',l);}
+ db.customers.filter(c=>cmatch(c,q)).slice(0,8).forEach(c=>l.push(`<div class="aco" onclick="pickC(${c.id})"><b>${esc(c.name)}</b><span>${c.balance>0?'عليه '+fmt(c.balance):esc(c.phone||c.addr||'')}</span></div>`));if(typeof aclOnly==='function')aclOnly('s',q).forEach(s=>l.push(`<div class="aco" onclick="pickCS(${s.id})"><b>${esc(s.name)}</b><span>${esc(s.phone||s.addr||'')}</span></div>`));showAc('i_cl',l);}
 function pickC(id){draft.cid=id;draft.lines.forEach(l=>{if(l.pid&&!l.edited){const lp=lastPrice(id,l.pid);l.price=lp??prod(l.pid).price;l.last=lp!=null}});if($('#lines'))drawLines();$('#i_cq').value=id?cname(id):'عميل نقدي';hideAc();}
 function lastPrice(cid,pid){if(!cid)return null;for(let i=db.invoices.length-1;i>=0;i--){const v=db.invoices[i];if(v.cid==cid){const it=v.items.find(x=>x.pid==pid);if(it)return it.price}}return null}
 function setKind(k){draft.kind=k;if(k==='آجل')draft.paid=0;route();drawLines();}
