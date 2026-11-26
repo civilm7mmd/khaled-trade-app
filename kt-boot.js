@@ -423,8 +423,8 @@ function authScreen(){if(Auth.hasKS()){authLogin();return}
 function authLogin(){const w=Auth.wait();authShell(`<h1>${esc(db.settings.name||'خالد تريد')}</h1><div class="sub">سجّل دخولك علشان تكمل</div>
  <form onsubmit="authDoLogin();return false"><label>اسم المستخدم</label><input id="lg_u" autocomplete="username" autocapitalize="none" spellcheck="false"><label>الباسورد</label><div class="pw"><input id="lg_p" type="password" autocomplete="current-password">${eyeBtn('lg_p')}</div>
  <div class="er" id="lg_e">${w?'استنى '+w+' ثانية':''}</div><button class="btn" id="lg_b" type="submit" style="margin-top:6px">دخول</button></form><a class="lk" onclick="authRecover()">نسيت الباسورد؟</a><div class="ft">🔒 بياناتك مشفرة على الجهاز</div>`);setTimeout(()=>{const u=A$('lg_u');if(u)u.focus()},50)}
-/* أسماء دخول بديلة: عابدين / abdeen بتدخّل حساب المدير التاني (manager2) بنفس الباسورد، واسم manager2 القديم لسه شغال */
-const KT_ALIAS={'abdeen':'manager2','abdeen ':'manager2','عابدين':'manager2','عابدين ':'manager2'};
+/* أسماء دخول بديلة: عابدين وmanager2 (الاسم القديم) بيدخّلوا حساب abdeen بنفس الباسورد */
+const KT_ALIAS={'manager2':'abdeen','عابدين':'abdeen'};
 const ktUser=x=>{x=String(x||'').normalize('NFKC').replace(/[\u064B-\u065F\u0640]/g,'').trim();const k=x.toLowerCase();return KT_ALIAS[k]||x};
 async function authDoLogin(){const u=ktUser(A$('lg_u').value),p=A$('lg_p').value,b=A$('lg_b'),e=A$('lg_e');if(!u.trim()||!p){e.textContent='اكتب اسم المستخدم والباسورد';return}
  b.disabled=true;b.textContent='جارِ التحقق…';e.textContent='';const r=await Auth.login(u,p);if(r.ok){postInit();welcome();route();return}
