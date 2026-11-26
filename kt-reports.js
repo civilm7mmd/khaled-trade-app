@@ -101,7 +101,7 @@ function rFilters(t){const f=[];const need={sales:1,profit:1,top:1,custs:1,slow:
  `<div><label>الشركة</label><select onchange="RP.co=this.value;route()">${selOpts(db.companies.map(s=>[s.id,s.name]),RP.co,'الكل')}</select></div>`,
  `<div style="grid-column:1/-1"><label>صنف معين</label><select onchange="RP.pid=this.value;route()">${selOpts(db.products.map(p=>[p.id,p.name]),RP.pid,'كل الأصناف')}</select></div>`)}
  return f.length?`<div class="row2" style="margin-top:8px">${f.join('')}</div>`:''}
-R['/reports']=()=>{head('التقارير',true);const t=RP.t,PR=can('reports.profit');
+R['/reports']=()=>{head('التقارير',true);let t=RP.t,PR=can('reports.profit');
  if(!PR&&['profit','stockval'].includes(t))RP.t=t='sales';
  if(t==='profit')return profitPage();
  const bar=`<div class="card noprint"><b style="font-size:15px">${RT.find(x=>x[0]===t)[1]}</b>
@@ -213,8 +213,8 @@ R['/']=()=>{if(!can('reports.view'))return R_HOME();
   <div class="dh2"><div><span>الشهر</span><b>${fmt(s.sM)}</b></div><div><span>السنة</span><b>${fmt(s.sY)}</b></div>${PR?`<div class="pf"><span>ربح الشهر</span><b>${fmt(s.pM)}</b></div>`:''}</div></div>`;
  S.quick=`<div class="dq"><button class="gold" data-need="sales.add" onclick="location.hash='#/invoice/new'"><i>🧾</i>فاتورة</button><button onclick="location.hash='#/collect'"><i>💰</i>تحصيل</button><button onclick="location.hash='#/customers'"><i>👥</i>عملاء</button><button onclick="location.hash='#/products'"><i>📦</i>أصناف</button></div>`;
  S.gauges=`<div class="dsec">مؤشرات الأداء (الشهر)</div><div class="card gaug"><div class="rings">${PR?ring(pc(s.pM,s.sM),'هامش الربح'):''}${ring(pc(s.col,s.sM),'التحصيل من المبيعات','b')}${ring(pc(s.exp,s.sM),'المصروفات من المبيعات','r')}</div>
-  ${prog('مديونية العملاء من مبيعات السنة',pc(s.debt,s.sY),'r',pc(s.debt,s.sY)+'%')}${prog('أصناف تحت حد الطلب',lowP,'g',s.low.length+' من '+db.products.length)}</div>`;
- S.kpis=`<div class="dsec">الحركة المالية</div><div class="kpis2">${kp('💰','تحصيلات الشهر',fmt(s.col),'up')}${kp('🧾','مديونيات العملاء',fmt(s.debt),'rd')}${kp('🛒','مشتريات الشهر',fmt(s.pur))}${kp('💸','مصروفات الشهر',fmt(s.exp))}${PR?kp('📈','ربح السنة',fmt(s.pY),'up'):''}${PR?kp('📦','قيمة المخزون',fmt(s.stockVal)):''}${can('cash.view')?kp('🏦','رصيد الخزينة',fmt(cashBal()),'gd'):''}</div>`;
+  ${prog('مديونية الحسابات من مبيعات السنة',pc(s.debt,s.sY),'r',pc(s.debt,s.sY)+'%')}${prog('أصناف تحت حد الطلب',lowP,'g',s.low.length+' من '+db.products.length)}</div>`;
+ S.kpis=`<div class="dsec">الحركة المالية</div><div class="kpis2">${kp('💰','تحصيلات الشهر',fmt(s.col),'up')}${kp('🧾','مديونيات الحسابات',fmt(s.debt),'rd')}${kp('🛒','مشتريات الشهر',fmt(s.pur))}${kp('💸','مصروفات الشهر',fmt(s.exp))}${PR?kp('📈','ربح السنة',fmt(s.pY),'up'):''}${PR?kp('📦','قيمة المخزون',fmt(s.stockVal)):''}${can('cash.view')?kp('🏦','رصيد الخزينة',fmt(cashBal()),'gd'):''}</div>`;
  S.counts=`<div class="dcnt"><div><b>${db.invoices.length}</b><span>فاتورة</span></div><div><b>${db.customers.length}</b><span>عميل</span></div><div><b>${reps}</b><span>مندوب</span></div><div><b>${whs}/${cars}</b><span>مخزن/سيارة</span></div></div>`;
  S.notes=`<div class="card"><h2>🔔 إشعارات المدير</h2>${notes.length?notes.map(n=>`<div class="item"><div class="main"><div class="t" style="font-weight:500">${esc(n)}</div></div></div>`).join(''):'<div class="empty">مفيش إشعارات 👌</div>'}</div>`;
  S.recent=`<div class="card"><h2>آخر العمليات</h2>${A.slice(0,8).map(actRow).join('')||'<div class="empty">لسه مفيش عمليات</div>'}</div>`;

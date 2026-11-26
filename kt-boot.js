@@ -188,17 +188,20 @@ function tablePdf(title,cols,rows,foot,name){const W=1240,H=1754,M=60,RH=46,HH=5
   const d=atob(cv.toDataURL('image/jpeg',.9).split(',')[1]),jpg=new Uint8Array(d.length);for(let k=0;k<d.length;k++)jpg[k]=d.charCodeAt(k);pages.push({jpg,w:W,h:H})});
  return new File([jpegPdfN(pages)],name+'.pdf',{type:'application/pdf'})}
 function paperBuild(k){const ph=o=>(typeof phones==='function'?(phones(o)[0]||''):(o.phone||''));
- if(k==='bal'){recalcAll();const L=db.customers.filter(c=>Math.abs(c.balance||0)>0.5).sort((a,b)=>b.balance-a.balance);const t=L.reduce((a,c)=>a+(c.balance||0),0);
-  return tablePdf('مديونيات العملاء',[{h:'م',w:.07,n:1},{h:'العميل',w:.37},{h:'التليفون',w:.2},{h:'المنطقة',w:.18},{h:'المديونية',w:.18,n:1}],L.map((c,i)=>[i+1,c.name,ph(c),c.area||'',fmt(c.balance)]),'إجمالي المديونيات: '+fmt(t)+' ج.م  ·  '+L.length+' عميل','مديونيات-العملاء')}
- if(k==='cus'){recalcAll();const L=db.customers.slice().sort((a,b)=>a.name.localeCompare(b.name,'ar'));
-  return tablePdf('قايمة العملاء',[{h:'م',w:.07,n:1},{h:'العميل',w:.37},{h:'التليفون',w:.2},{h:'المنطقة',w:.18},{h:'الرصيد',w:.18,n:1}],L.map((c,i)=>[i+1,c.name,ph(c),c.area||'',fmt(c.balance||0)]),'عدد العملاء: '+L.length,'قايمة-العملاء')}
- if(k==='sup'){const L=db.suppliers.slice().sort((a,b)=>a.name.localeCompare(b.name,'ar'));const t=L.reduce((a,s)=>a+supBal(s),0);
-  return tablePdf('قايمة الموردين',[{h:'م',w:.07,n:1},{h:'المورد',w:.4},{h:'التليفون',w:.25},{h:'المستحق له',w:.28,n:1}],L.map((s,i)=>[i+1,s.name,ph(s),fmt(supBal(s))]),'عدد الموردين: '+L.length+'  ·  إجمالي المستحق: '+fmt(t)+' ج.م','قايمة-الموردين')}
+ /* ملفات الحسابات: حساب واحد لكل اسم، والرصيد صافي (موجب = عليه لينا، سالب = لينا عليه) */
+ if(k==='bal'||k==='cus'||k==='sup'){recalcAll();const A=aclList().map(a=>({n:aclName(a),ph:ph(a.c||a.s),ar:(a.c&&a.c.area)||'',net:aclNet(a)}));
+  const cols=[{h:'م',w:.07,n:1},{h:'الحساب',w:.37},{h:'التليفون',w:.2},{h:'المنطقة',w:.18},{h:'الرصيد',w:.18,n:1}];
+  if(k==='bal'){const L=A.filter(x=>x.net>0.5).sort((a,b)=>b.net-a.net);const t=L.reduce((q,x)=>q+x.net,0);
+   return tablePdf('الحسابات اللي عليها فلوس',cols,L.map((x,i)=>[i+1,x.n,x.ph,x.ar,fmt(x.net)]),'إجمالي المديونيات: '+fmt(t)+' ج.م  ·  '+L.length+' حساب','الحسابات-المدينة')}
+  if(k==='sup'){const L=A.filter(x=>x.net<-0.5).sort((a,b)=>a.net-b.net);const t=L.reduce((q,x)=>q-x.net,0);
+   return tablePdf('الحسابات اللي ليها فلوس عندنا',cols,L.map((x,i)=>[i+1,x.n,x.ph,x.ar,fmt(-x.net)]),'إجمالي المستحق: '+fmt(t)+' ج.م  ·  '+L.length+' حساب','الحسابات-الدائنة')}
+  const L=A.sort((a,b)=>a.n.localeCompare(b.n,'ar'));
+  return tablePdf('قايمة الحسابات',cols,L.map((x,i)=>[i+1,x.n,x.ph,x.ar,fmt(x.net)]),'عدد الحسابات: '+L.length,'قايمة-الحسابات')}
  if(k==='prd'){const C=can('products.cost');const L=db.products.slice().sort((a,b)=>a.name.localeCompare(b.name,'ar'));
   const cols=[{h:'م',w:.06,n:1},{h:'الصنف',w:C?.30:.38},{h:'الوحدة',w:.16},{h:'الرصيد',w:.1,n:1},{h:'سعر البيع',w:.13,n:1}].concat(C?[{h:'سعر الشراء',w:.13,n:1}]:[]).concat([{h:'الباركود',w:C?.12:.17}]);
   return tablePdf('الأصناف المسجلة',cols,L.map((p,i)=>[i+1,p.name,unitT(p),fmt(p.stock),fmt(p.price)].concat(C?[fmt(p.cost)]:[]).concat([p.barcode||''])),'عدد الأصناف: '+L.length,'الأصناف-المسجلة')}}
 function recalcAll(){db.customers.forEach(c=>recalc(c))}
-const PAPER=[['bal','💰','مديونيات العملاء','كل العملاء اللي عليهم فلوس وإجمالي المديونية',['customers.collect','reports.view','cash.view']],['cus','👥','قايمة العملاء','الاسم والتليفون والمنطقة والرصيد',['customers.collect','reports.view','cash.view']],['sup','🏭','قايمة الموردين','الاسم والتليفون والمستحق',['suppliers.view','reports.view','cash.view']],['prd','📦','الأصناف المسجلة','الأصناف والأرصدة والأسعار والباركود',['products.edit','stock.adjust','reports.view','sales.add']]];
+const PAPER=[['bal','💰','الحسابات اللي عليها فلوس','كل الحسابات اللي عليها فلوس وإجمالي المديونية',['customers.collect','reports.view','cash.view']],['cus','👥','قايمة الحسابات','الاسم والتليفون والمنطقة والرصيد',['customers.collect','reports.view','cash.view']],['sup','🏭','الحسابات اللي ليها فلوس عندنا','الاسم والتليفون والمنطقة والمستحق',['suppliers.view','reports.view','cash.view']],['prd','📦','الأصناف المسجلة','الأصناف والأرصدة والأسعار والباركود',['products.edit','stock.adjust','reports.view','sales.add']]];
 function paperDl(k){const d=PAPER.find(x=>x[0]===k);if(!d||!d[4].some(can))return toast('مش مسموح');try{const f=paperBuild(k);dl(f);try{audit('تحميل نسخة ورقية',d[2])}catch(e){}toast('اتحمل ملف الـ PDF ✅')}catch(e){console.warn(e);toast('تعذر تجهيز الملف')}}
 R['/paper']=()=>{head('النسخة الورقية',true);const L=PAPER.filter(d=>d[4].some(can));if(!L.length)return nf();
  return `<div class="card"><div class="s" style="color:var(--mut);padding-bottom:8px">اضغط على أي زرار ينزّل ملف PDF جاهز للطباعة أو الحفظ كنسخة ورقية.</div>${L.map(d=>`<button class="btn" style="display:flex;align-items:center;gap:10px;justify-content:flex-start;margin-bottom:10px;text-align:right" onclick="paperDl('${d[0]}')"><span style="font-size:24px">${d[1]}</span><span><b>⬇️ ${d[2]}</b><br><small style="opacity:.8">${d[3]}</small></span></button>`).join('')}</div>`};
