@@ -507,9 +507,11 @@ const _dQ=R['/'];R['/']=()=>quickPanel()+_dQ();
 /* ===== افتراضيًا محدش يحذف أو يعدّل أي حاجة محفوظة غير المدير، إلا لو اتداله صلاحية =====
    صلاحيتين جداد في صلاحيات المستخدم: data.delete (حذف/إلغاء أي حاجة) و data.edit (تعديل مستند محفوظ).
    الدوال دي بتتغلّف بفحص الصلاحية، والمدير (صلاحية كاملة) بيعدّي. */
-function gateDel(){['delAcct','delCat','delChq','delCustomer','delExp','delList','delNote','delOffer','delPay2','delPlace','delProduct','delQuote','delRexp','delSup','delUser','hrDel','hrDelAtt','hrDelEmp','spDel','handDel','removeUser'].forEach(n=>{try{const f=eval(n);if(typeof f!=='function'||f.__g)return;const g=function(){if(!can('data.delete'))return toast('🔒 الحذف محتاج صلاحية من المدير');return f.apply(this,arguments)};g.__g=1;eval(n+'=g')}catch(e){}})}
+function gateDel(){['delAcct','delCat','delChq','delCustomer','delExp','delList','delNote','delOffer','delPay2','delPlace','delProduct','delQuote','delRexp','delSup','delUser','hrDel','hrDelAtt','hrDelEmp','spDel','handDel','removeUser','cdDel','chatDel','mnDel','vDel','delInvoice','delPay2'].forEach(n=>{try{const f=window[n];if(typeof f!=='function'||f.__g)return;const g=function(){if(!can('data.delete'))return toast('🔒 الحذف محتاج صلاحية من المدير');return f.apply(this,arguments)};g.__g=1;window[n]=g}catch(e){}})}
 const _oaGate=outAuto;outAuto=function(){gateDel();_oaGate()};
 gateDel();
+/* الحذف للمدير بس: إعادة التغليف بعد تحميل كل السكربتات (لأن بعضها بيعيد تعريف الدوال) */
+window.addEventListener('load',()=>{try{gateDel()}catch(e){}});
 
 
 const needLogin=()=>!DEMO&&!Auth.ok();

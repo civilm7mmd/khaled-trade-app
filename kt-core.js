@@ -25,7 +25,7 @@ function ensure(){db.seq=db.seq||{};db.settings=db.settings||{name:'خالد ت�
  db.users.forEach(u=>{if(!u.perms)u.perms=(TEMPLATES[u.role]||TEMPLATES.manager).perms.slice();u.locs=u.locs||[];if(u.id===1&&u.role==='manager')u.perms=['*']});
  db.chatRead=db.chatRead||{};db.settings.print=db.settings.print||{paper:'A4',logo:true,footer:''};db.me=db.me||1;delete db.roles;syncStock()}
 const me=()=>db.users.find(u=>u.id==db.me)||db.users[0];
-const can=k=>{const p=(me()||{}).perms||[];return p.includes('*')||p.includes(k)};
+const can=k=>{const p=(me()||{}).perms||[];if(k==='data.delete'||k==='sales.delete'||k==='expenses.delete')return p.includes('*');/* الحذف للمدير بس */return p.includes('*')||p.includes(k)};
 const secN=id=>(db.sections.find(x=>x.id==id)||{}).name||'',coN=id=>(db.companies.find(x=>x.id==id)||{}).name||'';
 let fSec='',fCo='';
 const save=()=>store.save(db);
