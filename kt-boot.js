@@ -146,7 +146,6 @@ const _rsVat=R['/settings'];R['/settings']=()=>{const h=_rsVat();if(!can('users.
 let CAL={m:'',sel:''};
 function calEvents(){const E={};const A=(d,e)=>{if(!d)return;(E[d]=E[d]||[]).push(e)};V2();
  if(can('cash.view'))db.chq.filter(c=>!['محصل','مدفوع','راجع'].includes(c.st)).forEach(c=>A(c.due,{k:c.t==='in'?'in':'out',t:(c.t==='in'?'📥 شيك وارد من ':'📤 شيك صادر إلى ')+chqParty(c),a:c.amount,h:'#/chq'}));
- if(can('customers.collect')||can('cash.view'))instAll().filter(r=>canRemind(r.i)).forEach(r=>A(r.x.due,{k:'in',t:'🗓 قسط '+((r.c&&r.c.name)||'')+' (فاتورة #'+r.i.no+')',a:instRem(r.x),h:'#/customer/'+(r.c?r.c.id:'')}));
  return E}
 R['/cal']=()=>{head('تقويم الاستحقاقات',true);if(!CAL.m)CAL.m=today().slice(0,7);const [y,mo]=CAL.m.split('-').map(Number),E=calEvents(),first=new Date(Date.UTC(y,mo-1,1)),dim=new Date(Date.UTC(y,mo,0)).getUTCDate(),off=(first.getUTCDay()+1)%7;
  const MN=['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'],td=today();let cells='';

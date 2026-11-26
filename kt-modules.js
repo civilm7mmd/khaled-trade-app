@@ -185,6 +185,7 @@ function cashEv(){const e=[];const I=(d,t,a,desc)=>a>0&&e.push({d,t,in:a,out:0,d
  db.rets.forEach(r=>r.k==='sret'?O(r.date,r.ts,r.paid,'مرتجع مبيعات #'+r.no):I(r.date,r.ts,r.paid,'مرتجع مشتريات #'+r.no));
  db.exps.forEach(x=>O(x.date,x.ts,x.amount,'مصروف: '+x.cat+(x.note?' - '+x.note:'')));
  db.pay.filter(x=>x.type==='paid').forEach(x=>O(x.date,x.ts,x.amount,'مرتب/عمولة '+uname(x.uid)));
+ (db.pay||[]).filter(x=>x.type==='paid').forEach(x=>O(x.date,x.ts||x.id,x.amount,'مرتب مندوب '+uname(x.uid)));
  db.cashx.forEach(x=>x.dir==='in'?I(x.date,x.ts,x.amount,x.note||'إيداع'):O(x.date,x.ts,x.amount,x.note||'سحب'));
  e.sort((a,b)=>(a.d||'').localeCompare(b.d||'')||a.t-b.t);let b=0;e.forEach(x=>{b+=x.in-x.out;x.bal=b});return e}
 const cashBal=()=>{const e=cashEv();return e.length?e[e.length-1].bal:0};

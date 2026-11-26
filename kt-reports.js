@@ -83,7 +83,7 @@ function stSearch(q){$('#st_l').innerHTML=stList(q)}
    ===================================================================== */
 const RP={t:'sales',g:'prod',from:today().slice(0,8)+'01',to:today(),loc:'',rep:'',sec:'',co:'',pid:'',cid:''};
 const inR=d=>d>=RP.from&&d<=RP.to;
-const RT=[['sales','📊 مبيعات حسب…'],['profit','💹 الأرباح'],['top','🏆 الأكثر مبيعًا'],['custs','👑 أفضل العملاء'],['slow','🐌 راكد (ما اتباعش)'],['stockval','🏷️ قيمة المخزون'],['expiry','⏳ الصلاحية'],['cashmv','💰 حركة الخزينة'],['perf','🏅 أداء المناديب'],['comm','🧮 عمولات المناديب'],['bal','🧾 العملاء اللي عليهم فلوس'],['supbal','🏭 مستحقات الموردين'],['exps','💸 المصروفات']];
+const RT=[['sales','📊 مبيعات حسب…'],['profit','💹 الأرباح'],['slow','🐌 راكد (ما اتباعش)'],['stockval','🏷️ قيمة المخزون'],['expiry','⏳ الصلاحية'],['perf','🏅 أداء المناديب والعمولات'],['supbal','🏭 أرصدة الموردين'],['exps','💸 المصروفات']];
 const GROUPS=[['day','اليوم'],['prod','الصنف'],['rep','المندوب'],['loc','المخزن/السيارة'],['sec','القسم'],['co','الشركة'],['cust','العميل'],['all','الإجمالي']];
 function saleLines(){const o=[];const P=id=>prod(id)||{};
  db.invoices.forEach(i=>{if(!inR(i.date))return;const k=i.sub?i.total/i.sub:1;i.items.forEach(it=>{const p=P(it.pid);o.push({d:i.date,pid:it.pid,name:it.name,sec:p.sec,co:p.co,loc:i.loc||'w1',rep:i.by,cid:i.cid,qty:it.qty,amt:it.qty*it.price*k,cost:it.qty*(it.cost!=null?it.cost:(p.cost||0))})})});
@@ -121,7 +121,7 @@ function ppSet(m){PP.m=m;PP.off=0;if(m==='custom'){PP.from=PP.from||today().slic
 function ppNums(a,b){const keep=[RP.from,RP.to,RP.loc,RP.rep,RP.sec,RP.co,RP.pid,RP.cid];RP.from=a;RP.to=b;RP.loc=RP.rep=RP.sec=RP.co=RP.pid=RP.cid='';
  const l=saleLines();[RP.from,RP.to,RP.loc,RP.rep,RP.sec,RP.co,RP.pid,RP.cid]=keep;
  const sales=l.reduce((x,r)=>x+r.amt,0),cogs=l.reduce((x,r)=>x+r.cost,0),inn=d=>d>=a&&d<=b;
- const ex=db.exps.filter(x=>inn(x.date)),sal=ex.filter(x=>x.cat==='مرتبات').reduce((x,r)=>x+r.amount,0)+db.pay.filter(x=>x.type==='paid'&&inn(x.date)).reduce((x,r)=>x+r.amount,0),oth=ex.filter(x=>x.cat!=='مرتبات').reduce((x,r)=>x+r.amount,0);
+ const ex=db.exps.filter(x=>inn(x.date)),sal=ex.filter(x=>x.cat==='مرتبات').reduce((x,r)=>x+r.amount,0)+db.pay.filter(x=>x.type==='paid'&&inn(x.date)).reduce((x,r)=>x+r.amount,0)+(db.rpay||[]).filter(x=>inn(x.date)).reduce((x,r)=>x+r.amount,0),oth=ex.filter(x=>x.cat!=='مرتبات').reduce((x,r)=>x+r.amount,0);
  return{sales,cogs,gross:sales-cogs,oth,sal,net:sales-cogs-oth-sal,n:db.invoices.filter(i=>inn(i.date)).length}}
 function ppDetail(a,b){RP.from=a;RP.to=b;const PR=can('reports.profit');
  const f=rFilters('profit');

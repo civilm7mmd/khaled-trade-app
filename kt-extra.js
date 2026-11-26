@@ -757,18 +757,8 @@ const _si=saveInvoice;saveInvoice=function(){if(!draft.q){const L=draft.lines.fi
  return _si()};
 const _ei=editInvoice;editInvoice=function(id){_ei(id);const i=db.invoices.find(x=>x.id==id);if(i&&draft.edit){draft.inst=newInst();if(i.inst&&i.inst.length){draft.inst.on=true;draft.inst.mode='cu';draft.inst.rows=i.inst.map(x=>({amt:x.amt,due:x.due,paid:x.paid||0}))}}};
 
-/* ---------- جدول الأقساط: عرض وطباعة + تسجيل دفعة قسط ---------- */
-function instTable(i,withBtn){const c=cust(i.cid);return `<table><tr><th>#</th><th>الاستحقاق</th><th>القسط</th><th>المدفوع</th><th>الحالة</th>${withBtn?'<th class="noprint"></th>':''}</tr>${instOf(i).map((x,k)=>{const r=instRem(x),s=r?instSt(daysTo(x.due)):['','✅ مسدد'];return `<tr><td>${k+1}</td><td>${x.due}</td><td>${fmt(x.amt)}</td><td>${fmt(x.paid||0)}</td><td>${s[1]}</td>${withBtn?`<td class="noprint">${r&&can('customers.collect')?`<button class="chipb" onclick="payInst(${i.id},${k})">💵 دفع</button>`:''}${r&&canRemind(i)?`<button class="chipb wa" onclick="waInst(${i.id},${k})">واتساب</button>`:''}</td>`:''}</tr>`}).join('')}</table>`}
-const instCard=i=>`<div class="card out"><h2>🗓 جدول أقساط فاتورة #${i.no}</h2><div class="stat"><span>العميل</span><b>${esc(cname(i.cid))}</b></div><div class="stat"><span>إجمالي الأقساط</span><b>${fmt(instOf(i).reduce((a,x)=>a+x.amt,0))} ج.م</b></div><div class="stat"><span>المتبقي</span><b>${fmt(instOf(i).reduce((a,x)=>a+instRem(x),0))} ج.م</b></div>${instTable(i,true)}</div>`;
-const R_INV3=R['/invoice'];R['/invoice']=(id,qs)=>{const h=R_INV3(id,qs);const i=db.invoices.find(x=>x.id==id);return h+(i&&i.inst&&i.inst.length?instCard(i):'')};
-function payInst(iid,k){const i=db.invoices.find(x=>x.id==iid),x=i&&i.inst[k];if(!x)return;if(!can('customers.collect'))return toast('مش مسموح لك تسجل تحصيل');const r=instRem(x);
- const v=prompt('المبلغ المدفوع من القسط '+(k+1)+' (المتبقي '+fmt(r)+')',r);if(v===null)return;const a=+v;if(!(a>0))return toast('اكتب مبلغ صحيح');if(a>r+0.001)return toast('المبلغ أكبر من المتبقي في القسط');
- db.payments.push({id:++db.seq.pay,cid:i.cid,date:today(),ts:Date.now(),by:db.me||1,amount:a,note:'قسط '+(k+1)+' فاتورة #'+i.no,inst:{inv:i.id,k}});x.paid=+((x.paid||0)+a).toFixed(2);if(x.paid>=x.amt-0.001){x.paid=x.amt}
- recalc(cust(i.cid));notify(`💵 تحصيل قسط ${k+1} فاتورة #${i.no} من ${cname(i.cid)}: ${fmt(a)}`);save();toast('تم تسجيل دفعة القسط ✅');route()}
 function waRaw(c,txt){const n=c&&waNum(c.phone);if(!n)return toast('مفيش رقم تليفون مسجل للعميل ده');window.open('https://wa.me/'+n+'?text='+encodeURIComponent(txt),'_blank')}
 const coName=()=>(db.settings&&db.settings.company)||'خالد تريد';
-function waInst(iid,k){const i=db.invoices.find(x=>x.id==iid),x=i&&i.inst[k];if(!x)return;if(!canRemind(i))return toast('مش مسموح');const d=daysTo(x.due);
- waRaw(cust(i.cid),`السلام عليكم ${cname(i.cid)} 🌿\nتذكير بقسط فاتورة رقم ${i.no} بقيمة ${fmt(instRem(x))} جنيه، ${d<0?'وكان ميعاده '+x.due+' (متأخر '+(-d)+' يوم)':d===0?'ميعاد استحقاقه النهارده '+x.due:'ميعاد استحقاقه '+x.due}.\nنرجو السداد في أقرب وقت. شكراً لتعاملك مع ${coName()}`)}
 /* كشف الحساب: يضيف الأقساط المفتوحة (تتطبع مع الكشف) */
 const _sh=stmtHtml;stmtHtml=function(c,f,t){const inv=db.invoices.filter(i=>i.cid==c.id&&i.inst&&i.inst.some(x=>instRem(x)>0));return _sh(c,f,t)+inv.map(i=>`<div style="margin-top:12px"><b>🗓 أقساط فاتورة #${i.no}</b>${instTable(i,false)}</div>`).join('')};
 /* شاشة العميل: الأقساط + حد ائتماني + أسعار خاصة */
@@ -785,27 +775,14 @@ function spDel(id,p){const c=cust(id);delete c.sp[p];save();route()}
 /* السعر الخاص يغلب آخر سعر */
 const _lp=lastPrice;lastPrice=function(cid,pid){const c=cid&&cust(cid);if(c&&c.sp&&+c.sp[pid]>0)return +c.sp[pid];return _lp(cid,pid)};
 
-/* ---------- تنبيهات الأقساط (قبل الاستحقاق + يوم الاستحقاق + المتأخر) ---------- */
-function checkInst(){const td=today(),L=instLead();let ch=false;
- instAll().forEach(({i,x,k,d})=>{const nm=cname(i.cid),m=`قسط ${k+1} فاتورة #${i.no} (${nm}) بقيمة ${fmt(instRem(x))}`;
-  if(d<0){if(x.no!==td){notify(`⚠️ ${m} متأخر ${-d} يوم (كان ${x.due})`);x.no=td;ch=true}}
-  else if(d===0){if(x.nd!==td){notify(`⏰ ${m} مستحق النهارده`);x.nd=td;ch=true}}
-  else if(d<=L&&!x.nl){notify(`🔔 ${m} هيستحق بعد ${d} يوم (${x.due})`);x.nl=1;ch=true}});if(ch)save()}
-const R_DASH3=R['/'];R['/']=()=>{checkInst();let h=R_DASH3();if(!can('reports.view')&&!can('customers.collect'))return h;const a=instAll().filter(r=>canRemind(r.i));
- const ov=a.filter(r=>r.d<0),td=a.filter(r=>r.d===0),sn=a.filter(r=>r.d>0&&r.d<=instLead()),S=l=>l.reduce((s,r)=>s+instRem(r.x),0);
- if(!a.length)return h;
- const row=r=>{const s=instSt(r.d);return `<div class="item"><div class="main"><div class="t">${esc(cname(r.i.cid))}</div><div class="s">قسط ${r.k+1} فاتورة #${r.i.no} · ${r.x.due}</div></div><span class="pill ${s[0]}">${s[1]}</span><div class="num">${fmt(instRem(r.x))}</div>${canRemind(r.i)?`<button class="chipb wa" onclick="waInst(${r.i.id},${r.k})">واتساب</button>`:''}</div>`};
- const show=[...ov,...td,...sn].slice(0,6);
- return `<div class="card"><h2>🗓 الأقساط</h2><div class="kpis" style="grid-template-columns:repeat(3,1fr);margin:0 0 8px"><div class="kpi"><span>متأخرة</span><b class="neg">${ov.length}</b><small>${fmt(S(ov))}</small></div><div class="kpi"><span>النهارده</span><b>${td.length}</b><small>${fmt(S(td))}</small></div><div class="kpi"><span>خلال ${instLead()} يوم</span><b>${sn.length}</b><small>${fmt(S(sn))}</small></div></div>${show.length?show.map(row).join(''):'<div class="empty" style="padding:14px">مفيش أقساط مستحقة قريب</div>'}<button class="btn sec" onclick="location.hash='#/collect'">كل التحصيلات والأقساط ›</button></div>`+h};
-
 /* ---------- تحصيل المديونيات + تذكير واتساب ---------- */
 function debtors(){return db.customers.filter(c=>{recalc(c);return c.balance>0.5&&(!me().emp||c.rep==me().id||db.invoices.some(i=>i.cid==c.id&&i.by==me().id))}).sort((a,b)=>b.balance-a.balance)}
-function waCust(id){const c=cust(id);if(!c)return;const ov=instAll().filter(r=>r.i.cid==id&&r.d<=0),late=ov.reduce((s,r)=>s+instRem(r.x),0);
- waRaw(c,`السلام عليكم ${c.name} 🌿\nمعاك ${coName()}. المتبقي على حضرتك ${fmt(c.balance)} جنيه${late>0?'، منها '+fmt(late)+' أقساط مستحقة':''}.\nنرجو السداد في أقرب وقت. شكراً لتعاملك معانا`)}
-R['/collect']=()=>{head('تحصيل المديونيات',true);const ds=debtors(),tot=ds.reduce((a,c)=>a+c.balance,0),ins=instAll().filter(r=>canRemind(r.i));
+function waCust(id){const c=cust(id);if(!c)return;const late=0;
+ waRaw(c,`السلام عليكم ${c.name} 🌿\nمعاك ${coName()}. المتبقي على حضرتك ${fmt(c.balance)} جنيه.\nنرجو السداد في أقرب وقت. شكراً لتعاملك معانا`)}
+R['/collect']=()=>{head('تحصيل المديونيات',true);const ds=debtors(),tot=ds.reduce((a,c)=>a+c.balance,0);
  return `<div class="card out"><h2>💰 العملاء المدينين (${ds.length})</h2><div class="stat"><span>إجمالي المديونيات</span><b class="neg">${fmt(tot)} ج.م</b></div>
- ${ds.length?ds.map(c=>{const o=ins.filter(r=>r.i.cid==c.id&&r.d<0).length;return `<div class="item"><div class="main"><div class="t">${esc(c.name)}</div><div class="s">${esc(c.phone||'بدون رقم')}${o?' · <span style="color:var(--red)">'+o+' قسط متأخر</span>':''}</div></div><div class="num neg">${fmt(c.balance)}</div><button class="chipb wa noprint" onclick="waCust(${c.id})">واتساب</button><button class="chipb noprint" onclick="location.hash='#/stmt/${c.id}'">كشف</button></div>`}).join(''):'<div class="empty">مفيش مديونيات 🎉</div>'}</div>
- <div class="card out"><h2>🗓 الأقساط المفتوحة (${ins.length})</h2>${ins.length?ins.map(r=>{const s=instSt(r.d);return `<div class="item"><div class="main"><div class="t">${esc(cname(r.i.cid))}</div><div class="s">قسط ${r.k+1} فاتورة #${r.i.no} · ${r.x.due}</div></div><span class="pill ${s[0]}">${s[1]}</span><div class="num">${fmt(instRem(r.x))}</div><button class="chipb noprint" onclick="payInst(${r.i.id},${r.k})">💵</button><button class="chipb wa noprint" onclick="waInst(${r.i.id},${r.k})">واتساب</button></div>`}).join(''):'<div class="empty">مفيش أقساط مفتوحة</div>'}</div>`};
+ ${ds.length?ds.map(c=>{const o=0;return `<div class="item"><div class="main"><div class="t">${esc(c.name)}</div><div class="s">${esc(c.phone||'بدون رقم')}</div></div><div class="num neg">${fmt(c.balance)}</div><button class="chipb wa noprint" onclick="waCust(${c.id})">واتساب</button><button class="chipb noprint" onclick="location.hash='#/stmt/${c.id}'">كشف</button></div>`}).join(''):'<div class="empty">مفيش مديونيات 🎉</div>'}</div>
+ `};
 
 /* ---------- ملخص نهاية اليوم ---------- */
 let eodD='';
@@ -838,7 +815,7 @@ function scanCode(code){code=(code||'').trim();if(!code)return;const m=$('#scanm
  drawLines();if(m){m.className='alert';m.innerHTML='✅ اتضاف: <b>'+esc(p.name)+'</b>'}const i=$('#scanin');if(i)i.value=''}
 
 /* ---------- الإعدادات: مدة تنبيه الأقساط + نسخ احتياطي واستعادة ---------- */
-const R_SET2=R['/settings'];R['/settings']=()=>{const h=R_SET2();return h+`<div class="card"><h2>🗓 تنبيهات الأقساط</h2><label>ينبّهني قبل ميعاد القسط بـ (أيام)</label><input type="number" min="0" inputmode="numeric" value="${instLead()}" onchange="db.settings.instLead=Math.max(0,+this.value||0);save();toast('اتحفظ ✅')"><div style="font-size:12px;color:var(--mut);margin-top:6px">التنبيه جوه البرنامج (إشعارات المدير). التنبيه على الموبايل برا البرنامج في مرحلة السيرفر.</div></div>
+const R_SET2=R['/settings'];R['/settings']=()=>{const h=R_SET2();return h+`
  <div class="card"><h2>💾 النسخ الاحتياطي</h2><div style="font-size:13px;color:var(--mut);margin-bottom:8px">بياناتك محفوظة على الجهاز ده بس لحد مرحلة السيرفر. خد نسخة بشكل دوري.</div><button class="btn" style="margin-top:0" onclick="backupExport()">⬇️ تصدير كل البيانات (ملف)</button><label style="margin-top:12px">استعادة من ملف نسخة</label><input type="file" accept=".json,application/json" onchange="backupImport(this)"><div style="font-size:12px;color:var(--red);margin-top:6px">الاستعادة بتستبدل كل البيانات الحالية.</div></div>`};
 function backupExport(){const b=new Blob([JSON.stringify(db)],{type:'application/json'}),a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='khaled-trade-backup-'+today()+'.json';document.body.appendChild(a);a.click();a.remove();db.settings.lastBackup=today();save();toast('اتحمل ملف النسخة الاحتياطية ✅')}
 function backupImport(inp){const f=inp.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{let d;try{d=JSON.parse(r.result)}catch(e){return toast('الملف مش صالح')}
@@ -875,7 +852,7 @@ function plFit(){const z=Math.min(1,(Math.min(innerWidth,1100)-28)/794);document
 function plDraw(){const e=$('#plv');if(e){e.innerHTML=plHtml();plFit()}}
 const plSetCols=n=>{PL.cols=n;route()};
 R['/pricelist']=()=>{head('قائمة الأصناف',true);const g=plGroups();plFit();
- return `<div class="card noprint"><label>عدد الأعمدة عند الطباعة</label><div class="seg"><button class="${PL.cols===1?'on':''}" onclick="plSetCols(1)">▭ عمود واحد (مريح)</button><button class="${PL.cols===2?'on':''}" onclick="plSetCols(2)">▯▯ عمودين (مضغوط)</button></div>
+ return `<div class="card noprint"><button class="btn sec" onclick="location.hash='#/itemsrep'">🖨️ طباعة بيانات الأصناف (تفصيلي)</button><label style="margin-top:12px">عدد الأعمدة عند الطباعة</label><div class="seg"><button class="${PL.cols===1?'on':''}" onclick="plSetCols(1)">▭ عمود واحد (مريح)</button><button class="${PL.cols===2?'on':''}" onclick="plSetCols(2)">▯▯ عمودين (مضغوط)</button></div>
  <label style="margin-top:12px">تقسيم القائمة حسب</label><div class="seg"><button class="${PL.by==='sec'?'on':''}" onclick="PL.by='sec';route()">المجموعة / القسم</button><button class="${PL.by==='co'?'on':''}" onclick="PL.by='co';route()">الشركة</button><button class="${PL.by==='none'?'on':''}" onclick="PL.by='none';route()">ترتيبي</button></div>
  ${PL.by==='none'?'':`<label style="margin-top:12px">اختار الأقسام اللي تتطبع</label><div class="bar"><button onclick="plAll(true)">الكل</button><button onclick="plAll(false)">ولا واحد</button></div>${g.map(x=>`<label class="chk"><input type="checkbox" ${PL.off[x.k]?'':'checked'} onchange="PL.off['${x.k}']=!this.checked;plDraw()"> ${esc(x.n)} <span class="s">(${x.items.length})</span></label>`).join('')}`}
  <label style="margin-top:12px">سعر الصنف في القائمة</label><div class="seg"><button class="${PL.price?'on':''}" onclick="PL.price=true;route()">💲 بالسعر</button><button class="${PL.price?'':'on'}" onclick="PL.price=false;route()">بدون سعر</button></div></div>
@@ -952,15 +929,14 @@ Object.assign(ROUTE_PERM,{'/dashset':'reports.view'});
 /* ---------- قائمة المزيد بالأقسام: كل مجموعة أيقونة واحدة، وجواها الشاشات المرتبطة بيها ---------- */
 const MORE_GROUPS=[
  {id:'inv',ic:'🧾',n:'الفواتير',d:'بيع وشراء ومرتجعات وعروض أسعار',it:[['🧾','فواتير البيع','#/invoices','sales.view'],['↩️','مرتجع مبيعات',"javascript:openDoc('sret')",'sales.return'],['🛒','فاتورة شراء',"javascript:openDoc('pur')",'purchases.add'],['↩️','مرتجع مشتريات',"javascript:openDoc('pret')",'purchases.return'],['📚','سجل المشتريات','#/log/pur','purchases.view'],['📝','عروض الأسعار','#/quotes','sales.view']]},
- {id:'stk',ic:'📦',n:'المخزون والأصناف',d:'أصناف ومخزون وجرد وتحويلات',it:[['📦','المنتجات','#/products','products.view,stock.view,sales.add,purchases.add'],['🖨','طباعة بيانات أصناف','#/itemsrep','products.view,stock.view'],['🧾','قائمة الأصناف (عرض أسعار)','#/pricelist','products.pricelist'],['📊','المخزون','#/stock','stock.view'],['🔁','تحويل / تحميل سيارة',"javascript:openDoc('tr')",'stock.transfer'],['⚖️','جرد وتسوية',"javascript:openDoc('adj')",'stock.adjust'],['🏭','المخازن والسيارات','#/places','stock.places'],['🎁','العروض التجارية','#/offers','products.edit']]},
- {id:'par',ic:'👥',n:'العملاء والموردين',d:'عملاء وكشف حساب وتحصيل وموردين',it:[['👥','العملاء وكشف الحساب','#/customers','customers.view,customers.statement,sales.add'],['💰','تحصيل المديونيات','#/collect','customers.collect'],['🏭','الموردين','#/suppliers','suppliers.view'],['🗓','أقساط الموردين','#/spinst','suppliers.view']]},
- {id:'fin',ic:'💰',n:'الحسابات',d:'الخزينة والمصروفات وملخص اليوم',it:[['💰','الخزينة','#/cash','cash.view'],['💸','المصروفات','#/expenses','expenses.add,cash.view'],]},
+ {id:'stk',ic:'📦',n:'المخزون والأصناف',d:'أصناف ومخزون وجرد وتحويلات',it:[['📦','المنتجات','#/products','products.view,stock.view,sales.add,purchases.add'],['🧾','قائمة الأصناف والأسعار','#/pricelist','products.pricelist'],['📊','المخزون','#/stock','stock.view'],['🔁','تحويل / تحميل سيارة',"javascript:openDoc('tr')",'stock.transfer'],['⚖️','جرد وتسوية',"javascript:openDoc('adj')",'stock.adjust'],['🏭','المخازن والسيارات','#/places','stock.places'],['🎁','العروض التجارية','#/offers','products.edit']]},
+ {id:'par',ic:'👥',n:'العملاء والموردين',d:'عملاء وكشف حساب وتحصيل وموردين',it:[['👥','العملاء وكشف الحساب','#/customers','customers.view,customers.statement,sales.add'],['💰','تحصيل المديونيات','#/collect','customers.collect'],['🏭','الموردين','#/suppliers','suppliers.view']]},
+ {id:'fin',ic:'💰',n:'الخزينة والمصروفات',d:'الخزينة والمصروفات وملخص اليوم',it:[['💰','الخزينة','#/cash','cash.view'],['💸','المصروفات','#/expenses','expenses.add,cash.view'],]},
  {id:'rep',ic:'📈',n:'التقارير',d:'مبيعات وأرباح ومخزون وعملاء ومصروفات',grid:1,it:()=>RT.map(([k,n])=>{const ic=n.split(' ')[0],nm=n.slice(ic.length+1);return [ic,nm,"javascript:rpGo('"+k+"')",['profit','stockval'].includes(k)?'reports.profit':'reports.view',RPD[k]||'']}).concat([['📅','ملخص اليوم','#/eod','reports.view','إجمالي اليوم']])},
- {id:'hr',ic:'👔',n:'الموارد البشرية',d:'موظفين ومرتبات وحضور وإجازات',it:[['👤','بطاقات الموظفين','#/hr/emps','hr.view'],['💵','المرتبات','#/hr/pay','hr.manage'],['➖','الخصومات','#/hr/ded','hr.manage'],['💳','السلف','#/hr/adv','hr.manage'],['🏖','الإجازات','#/hr/leave','hr.view'],['📍','الحضور والانصراف','#/hr/att','hr.view,hr.attendance'],['⏱️','تقرير الحضور والتأخير','#/hr/attrep','hr.manage']]},
- {id:'team',ic:'🚚',n:'الفريق والتواصل',d:'مناديب ومستخدمين ومحادثات',it:[['🚚','المناديب والمرتبات','#/reps','reps.view'],['🔐','المستخدمين والصلاحيات','#/users','users.manage'],['📌','ملاحظات إلزامية','#/mnotes','users.manage','ملاحظة للمندوب لازم يستلمها'],['💬','المحادثات','#/chat',null],['🔔','الإشعارات','#/notifs','users.manage']]},
- {id:'sys',ic:'⚙️',n:'النظام',d:'الإعدادات والرقابة والبحث',it:[['⚙️','الإعدادات','#/settings','settings.edit'],['🕵️','سجل الرقابة','#/audit','users.manage'],['📜','سجل النشاط','#/activity','users.manage'],['🔍','بحث شامل','#/search',null],['☁️','المزامنة السحابية','#/sync',null]]}];
+ {id:'hr',ic:'👔',n:'الموظفين',d:'موظفين ومناديب ومرتبات وحضور ومستخدمين وتواصل',it:[['👤','بطاقات الموظفين','#/hr/emps','hr.view'],['💵','المرتبات','#/hr/pay','hr.manage'],['➖','الخصومات والمكافآت','#/hr/ded','hr.manage'],['💳','السلف','#/hr/adv','hr.manage'],['🏖','الإجازات','#/hr/leave','hr.view'],['📍','الحضور والانصراف','#/hr/att','hr.view,hr.attendance'],['🔐','المستخدمين والصلاحيات','#/users','users.manage'],['📌','ملاحظات إلزامية','#/mnotes','users.manage','ملاحظة للمندوب لازم يستلمها'],['💬','المحادثات','#/chat',null],['🔔','الإشعارات','#/notifs','users.manage']]},
+ {id:'sys',ic:'⚙️',n:'النظام',d:'الإعدادات والرقابة والبحث',it:[['⚙️','الإعدادات','#/settings','settings.edit'],['📜','سجل النشاط (مين عمل إيه)','#/activity','users.manage'],['🔍','بحث شامل','#/search',null],['☁️','المزامنة السحابية','#/sync',null]]}];
 const RPD={sales:'حسب الصنف أو المندوب أو العميل',profit:'ربح كل بند',top:'أعلى ٢٠ صنف',custs:'أعلى ٢٠ عميل',slow:'أصناف ما اتحركتش',stockval:'بالتكلفة وسعر البيع',expiry:'تواريخ انتهاء الأصناف',cashmv:'وارد ومنصرف الخزينة',perf:'مبيعات وتحصيل كل مندوب',comm:'عمولة كل مندوب',bal:'مديونيات العملاء',supbal:'اللي علينا للموردين',exps:'مصروفات حسب البند'};
-const ITD={'بطاقات الموظفين':'بيانات وتواريخ كل موظف','المرتبات':'صرف مرتب الشهر','الخصومات':'خصومات الموظفين','السلف':'سلف وأقساطها','الإجازات':'طلبات واعتماد ورصيد','الحضور والانصراف':'بنطاق لوكيشن الشركة','تقرير الحضور والتأخير':'تأخير وغياب كل موظف','فواتير البيع':'كل فواتير البيع','مرتجع مبيعات':'رجوع بضاعة من عميل','فاتورة شراء':'شراء من مورد','مرتجع مشتريات':'رجوع بضاعة لمورد','سجل المشتريات':'كل فواتير الشراء','عروض الأسعار':'عروض وتحويل لفاتورة','المنتجات':'الأصناف والأسعار','قائمة الأصناف (عرض أسعار)':'قائمة أسعار للطباعة','المخزون':'الرصيد في كل مخزن','تحويل / تحميل سيارة':'نقل بضاعة بين الأماكن','جرد وتسوية':'مطابقة الرصيد الفعلي','المخازن والسيارات':'أماكن التخزين','العروض التجارية':'كميات وخصومات','العملاء وكشف الحساب':'بيانات وكشف حساب','تحصيل المديونيات':'تسجيل دفعات','الموردين':'بيانات وحسابات','الخزينة':'وارد ومنصرف','المصروفات':'تسجيل المصروفات','المناديب والمرتبات':'مرتبات وعمولات','المستخدمين والصلاحيات':'أدوار وصلاحيات','المحادثات':'رسائل الفريق','الإشعارات':'تنبيهات المدير','الإعدادات':'بيانات الشركة والطباعة','سجل الرقابة':'مين عمل إيه','سجل النشاط':'آخر العمليات','بحث شامل':'دور في كل حاجة'};
+const ITD={'بطاقات الموظفين':'بيانات وتواريخ كل موظف','المرتبات':'صرف مرتب الشهر','الخصومات والمكافآت':'خصم أو مكافأة لموظف','السلف':'سلف وخصم شهري','الإجازات':'طلبات واعتماد ورصيد','الحضور والانصراف':'بنطاق لوكيشن الشركة','فواتير البيع':'كل فواتير البيع','مرتجع مبيعات':'رجوع بضاعة من عميل','فاتورة شراء':'شراء من مورد','مرتجع مشتريات':'رجوع بضاعة لمورد','سجل المشتريات':'كل فواتير الشراء','عروض الأسعار':'عروض وتحويل لفاتورة','المنتجات':'الأصناف والأسعار','قائمة الأصناف والأسعار':'قائمة أسعار وبيانات أصناف للطباعة','المخزون':'الرصيد في كل مخزن','تحويل / تحميل سيارة':'نقل بضاعة بين الأماكن','جرد وتسوية':'مطابقة الرصيد الفعلي','المخازن والسيارات':'أماكن التخزين','العروض التجارية':'كميات وخصومات','العملاء وكشف الحساب':'بيانات وكشف حساب','تحصيل المديونيات':'تسجيل دفعات','الموردين':'بيانات وحسابات','الخزينة':'وارد ومنصرف','المصروفات':'تسجيل المصروفات','المستخدمين والصلاحيات':'أدوار وصلاحيات','المحادثات':'رسائل الفريق','الإشعارات':'تنبيهات المدير','الإعدادات':'بيانات الشركة والطباعة','سجل النشاط (مين عمل إيه)':'آخر العمليات والرقابة','بحث شامل':'دور في كل حاجة'};
 function rpGo(k){RP.t=k;location.hash='#/reports'}
 const moreItems=g=>(typeof g.it==='function'?g.it():g.it).filter(t=>canAny(t[3])&&!(t[2]==='#/hand'&&!handOn()));
 R['/more']=()=>{head('المزيد');const G=MORE_GROUPS.filter(g=>moreItems(g).length);
@@ -1012,38 +988,6 @@ const _hdB=head;
 head=function(t,b){const h=location.hash.split('?')[0];_hdB(t,b||!(h===''||h==='#'||h==='#/'||h==='#/login'))};
 
 
-/* ---------- أقساط فاتورة الشراء (زي البيع): الباقي للمورد يتقسم أقساط متساوية أو مخصصة ---------- */
-function dPlan(rem){const I=doc.inst;if(!I||!I.on||!(rem>0))return[];return I.mode==='eq'?genEq(rem,I):I.rows.filter(r=>+r.amt>0).map(r=>({due:r.due,amt:+r.amt}))}
-function drawDInst(){const el=$('#dinst');if(!el||!doc||doc.k!=='pur')return;const t=dTot(),rem=t-dTotPaid();
- if(doc.kind==='كاش'||!(rem>0)){el.innerHTML='';return}
- const I=doc.inst=doc.inst||newInst();let h=`<label style="display:flex;gap:8px;align-items:center;margin:12px 0 0;color:var(--txt);font-size:14px;font-weight:700"><input type="checkbox" style="width:auto" ${I.on?'checked':''} onchange="doc.inst.on=this.checked;drawDInst()"> 🗓 تقسيط الباقي للمورد (${fmt(rem)} ج.م)</label>`;
- if(I.on){h+=`<div class="seg" style="margin-top:10px"><button class="${I.mode==='eq'?'on':''}" onclick="doc.inst.mode='eq';drawDInst()">أقساط متساوية</button><button class="${I.mode==='cu'?'on':''}" onclick="doc.inst.mode='cu';drawDInst()">أقساط مخصصة</button></div>`;
-  if(I.mode==='eq'){h+=`<div class="row2" style="margin-top:8px"><div><label>عدد الأقساط</label><input type="number" inputmode="numeric" min="1" max="60" value="${I.n}" oninput="doc.inst.n=+this.value||1;drawDInst()"></div><div><label>أول قسط في</label><input type="date" value="${I.first}" onchange="doc.inst.first=this.value;drawDInst()"></div></div><label>كل</label><select onchange="doc.inst.per=this.value;drawDInst()">${[['m','شهر'],['w','أسبوع'],['b','أسبوعين']].map(([k,n])=>`<option value="${k}" ${I.per===k?'selected':''}>${n}</option>`).join('')}</select><div style="margin-top:8px">${genEq(rem,I).map((r,k)=>`<div class="stat"><span>قسط ${k+1} · ${r.due}</span><b>${fmt(r.amt)}</b></div>`).join('')}</div>`}
-  else{const sm=I.rows.reduce((a,r)=>a+(+r.amt||0),0),d=+(rem-sm).toFixed(2);h+=`<div style="margin-top:8px">${I.rows.map((r,k)=>`<div class="row2" style="margin-bottom:6px;grid-template-columns:1fr 1fr auto;align-items:center"><input type="number" inputmode="decimal" placeholder="المبلغ" value="${r.amt}" oninput="doc.inst.rows[${k}].amt=this.value;dInstSum()"><input type="date" value="${r.due}" onchange="doc.inst.rows[${k}].due=this.value"><button class="back" onclick="doc.inst.rows.splice(${k},1);if(!doc.inst.rows.length)doc.inst.rows.push({amt:'',due:today()});drawDInst()">✕</button></div>`).join('')}</div><div class="row2"><button class="btn sec" onclick="const r=doc.inst.rows,l=r[r.length-1]||{};r.push({amt:'',due:addMonths(l.due||today(),1)});drawDInst()">＋ قسط</button></div><div class="alert ${d?'credit':''}" id="dinsum" style="margin:10px 0 0">${d?`موزّع ${fmt(sm)} من ${fmt(rem)} · فاضل ${fmt(d)}`:'✅ مجموع الأقساط = '+fmt(rem)}</div>`}}
- el.innerHTML=h}
-function dInstSum(){const e=$('#dinsum');if(!e)return;const t=dTot(),rem=t-dTotPaid(),sm=doc.inst.rows.reduce((a,r)=>a+(+r.amt||0),0),d=+(rem-sm).toFixed(2);e.className='alert'+(d?' credit':'');e.innerHTML=d?`موزّع ${fmt(sm)} من ${fmt(rem)} · فاضل ${fmt(d)}`:'✅ مجموع الأقساط = '+fmt(rem)}
-const _dtP=dTotals;dTotals=function(){_dtP();if(doc&&doc.k==='pur'&&!document.activeElement.closest?.('#dinst'))drawDInst()};
-
-
-/* ---------- أقساط الموردين: تنبيهات قبل الاستحقاق ويوم الاستحقاق والمتأخر + سداد القسط (بتتسجل دفعة للمورد) ---------- */
-function spInstAll(){const o=[];db.purchases.forEach(i=>(i.inst||[]).forEach((x,k)=>{if(instRem(x)>0)o.push({i,x,k,d:daysTo(x.due)})}));return o.sort((a,b)=>a.x.due.localeCompare(b.x.due))}
-function checkSpInst(){const td=today(),L=instLead();let ch=false;
- spInstAll().forEach(({i,x,k,d})=>{const m=`قسط ${k+1} فاتورة شراء #${i.no} (${sname(i.party)}) بقيمة ${fmt(instRem(x))}`;
-  if(d<0){if(x.no!==td){notify(`⚠️ ${m} متأخر ${-d} يوم (كان ${x.due})`);x.no=td;ch=true}}
-  else if(d===0){if(x.nd!==td){notify(`⏰ ${m} مستحق النهارده`);x.nd=td;ch=true}}
-  else if(d<=L&&!x.nl){notify(`🔔 ${m} هيستحق بعد ${d} يوم (${x.due})`);x.nl=1;ch=true}});if(ch)save()}
-function paySpInst(pid,k){const i=db.purchases.find(x=>x.id==pid),x=i&&i.inst&&i.inst[k];if(!x)return;const r=instRem(x);
- if(!confirm('تسجيل سداد '+fmt(r)+' ج.م للمورد '+sname(i.party)+' (قسط '+(k+1)+' فاتورة #'+i.no+')؟'))return;
- db.spay.push({id:nid('spay'),sid:i.party,date:today(),ts:Date.now(),by:db.me,amount:r,note:'قسط '+(k+1)+' فاتورة #'+i.no});x.paid=x.amt;save();toast('اتسجل السداد ✅');route()}
-const spRow=r=>{const s=instSt(r.d);return `<div class="item"><div class="main"><div class="t">${esc(sname(r.i.party))}</div><div class="s">قسط ${r.k+1} فاتورة شراء #${r.i.no} · ${r.x.due}</div></div><span class="pill ${s[0]}">${s[1]}</span><div class="num">${fmt(instRem(r.x))}</div><button class="chipb" onclick="paySpInst(${r.i.id},${r.k})">سدّد</button></div>`};
-R['/spinst']=()=>{head('أقساط الموردين',true);checkSpInst();const a=spInstAll();
- const ov=a.filter(r=>r.d<0),td=a.filter(r=>r.d===0),sn=a.filter(r=>r.d>0&&r.d<=instLead()),S=l=>l.reduce((s,r)=>s+instRem(r.x),0);
- return `<div class="kpis" style="grid-template-columns:repeat(3,1fr)"><div class="kpi" style="--c:#e4572e"><small>متأخرة</small><b>${ov.length}</b><small>${fmt(S(ov))}</small></div><div class="kpi" style="--c:#f0a500"><small>النهارده</small><b>${td.length}</b><small>${fmt(S(td))}</small></div><div class="kpi" style="--c:#1f6fd1"><small>خلال ${instLead()} يوم</small><b>${sn.length}</b><small>${fmt(S(sn))}</small></div></div>
- <div class="card"><h2>🗓 كل الأقساط المفتوحة (${a.length})</h2>${a.length?a.map(spRow).join(''):'<div class="empty">مفيش أقساط على الموردين</div>'}</div>`};
-Object.assign(ROUTE_PERM,{'/spinst':'suppliers.view'});
-const _dashSP=R['/'];R['/']=()=>{let h=_dashSP();if(!can('suppliers.view'))return h;checkSpInst();const a=spInstAll().filter(r=>r.d<=instLead());if(!a.length)return h;
- const ov=a.filter(r=>r.d<0).length;
- return `<div class="card"><h2>🗓 أقساط الموردين${ov?` <span class="pill bad">${ov} متأخر</span>`:''}</h2>${a.slice(0,5).map(spRow).join('')}<button class="btn sec" onclick="location.hash='#/spinst'">كل أقساط الموردين ›</button></div>`+h};
 
 
 /* =====================================================================
@@ -1051,7 +995,15 @@ const _dashSP=R['/'];R['/']=()=>{let h=_dashSP();if(!can('suppliers.view'))retur
    ومراقبة التأخير والغياب. البيانات في db.staff / hrded / hradv / hrlv / hratt / hrpay (نفس طبقة البيانات).
    ===================================================================== */
 function HRS(){['staff','hrded','hradv','hrlv','hratt','hrpay'].forEach(k=>db[k]=db[k]||[]);
- const s=db.settings;s.hr=s.hr||{start:'09:00',grace:15,end:'17:00',off:[5],radius:150,lat:'',lon:'',leaveDays:21};const h=s.hr;if(h.pen===undefined){h.pen=1;h.penLate=1;h.penAbs=1}if(h.useOut===undefined){h.useOut=1;h.acc=100}return h}
+ const s=db.settings;s.hr=s.hr||{start:'09:00',grace:15,end:'17:00',off:[5],radius:150,lat:'',lon:'',leaveDays:21};const h=s.hr;if(h.pen===undefined){h.pen=1;h.penLate=1;h.penAbs=1}if(h.useOut===undefined){h.useOut=1;h.acc=100}empSync(h);return h}
+/* موظف واحد لكل شخص: كل مستخدم (مندوب، سواق، أمين مخزن، محاسب، مدير) له بطاقة موظف واحدة مربوطة بيه.
+   المرتب والحضور والعمولة والسلف والخصومات كلها على بطاقة الموظف. بيشتغل مرة عند أول دخول للمدير وبيكمل أي مستخدم جديد. */
+function empSync(h){if(typeof can!=='function'||!can('hr.manage')||!db.users)return;h.skip=h.skip||[];let n=0;
+ if(!h.merged){try{const o=localStorage.getItem('kt_dbe');if(o)localStorage.setItem('kt_dbe_premerge',o)}catch(e){}}
+ db.users.forEach(u=>{if(h.skip.includes(u.id)||db.staff.some(e=>e.uid==u.id))return;
+  const same=db.staff.find(e=>!e.uid&&String(e.name||'').trim()===String(u.name||'').trim());if(same){same.uid=u.id;n++;return}
+  db.staff.push({id:nid('hr'),name:u.name,job:u.emp||u.role==='rep'?'مندوب':({keeper:'أمين مخزن',accountant:'محاسب',manager:'مدير'})[u.role]||'',salary:+u.salary||0,allow:0,pen:'yes',st:'نشط',uid:u.id,field:(u.emp||u.role==='rep')?1:0});n++});
+ if(!h.merged||n){h.merged=1;setTimeout(()=>{try{save()}catch(e){}},50)}}
 const hrMin=t=>{const [h,m]=String(t||'0:0').split(':');return (+h||0)*60+(+m||0)};
 const hrNow=()=>{const d=new Date();return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0')};
 const hrEmp=id=>db.staff.find(x=>x.id==id)||{};
@@ -1071,7 +1023,7 @@ function attStats(e,from,to){const H=HRS(),td=today();let pres=0,late=0,lateMin=
  return{pres,late,lateMin,abs,early,leave,noOut}}
 function advLeft(a){return Math.max(0,+(a.amt-(a.repaid||0)).toFixed(2))}
 /* حساب مرتب شهر: أساسي + بدلات − خصومات − خصم سلفة − خصم تأخير − خصم غياب (تلقائي من سجل الحضور) */
-function payCalc(e,m){const H=HRS();const ded=db.hrded.filter(x=>x.eid==e.id&&x.date.startsWith(m)).reduce((s,x)=>s+x.amt,0);
+function payCalc(e,m){const H=HRS();const ded=db.hrded.filter(x=>x.eid==e.id&&x.k!=='bonus'&&x.date.startsWith(m)).reduce((s,x)=>s+x.amt,0);
  const inst=db.hradv.filter(a=>a.eid==e.id).reduce((s,a)=>s+Math.min(advLeft(a),+a.monthly||advLeft(a)),0);
  const base=+e.salary||0,allow=+e.allow||0,rec=db.hrpay.find(p=>p.eid==e.id&&p.month===m);
  let late=0,abs=0,lateMin=0,absDays=0;
@@ -1079,8 +1031,16 @@ function payCalc(e,m){const H=HRS();const ded=db.hrded.filter(x=>x.eid==e.id&&x.
   const day=base/30,shift=Math.max(60,hrMin(H.end)-hrMin(H.start));lateMin=st.lateMin;absDays=st.abs;
   late=+(day/shift*lateMin*(+H.penLate||0)).toFixed(2);abs=+(day*absDays*(+H.penAbs||0)).toFixed(2)}
  if(rec){late=rec.late||0;abs=rec.abs||0;lateMin=rec.lateMin||0;absDays=rec.absDays||0}
- if(rec){const net=+rec.net||0,paid=hrPaid(rec),left=Math.max(0,+(net-paid).toFixed(2));return{base:rec.base,allow:rec.allow,ded:rec.ded,inst:rec.inst,late:rec.late||0,abs:rec.abs||0,lateMin:rec.lateMin||0,absDays:rec.absDays||0,net,rec,paid,left}}
- const net=Math.max(0,+(base+allow-ded-inst-late-abs).toFixed(2));return{base,allow,ded,inst,late,abs,lateMin,absDays,net,rec,paid:0,left:net}}
+ const X=hrExtra(e,m);
+ if(rec){const fx=+rec.net||0,net=Math.max(0,+(fx+X.plus-X.minus).toFixed(2)),paid=hrPaid(rec)+X.paid,left=Math.max(0,+(net-paid).toFixed(2));return{base:rec.base,allow:rec.allow,ded:rec.ded,inst:rec.inst,late:rec.late||0,abs:rec.abs||0,lateMin:rec.lateMin||0,absDays:rec.absDays||0,net,fixed:fx,comm:X.comm,bonus:X.bonus,rec,paid,left}}
+ const fx=Math.max(0,+(base+allow-ded-inst-late-abs).toFixed(2)),net=Math.max(0,+(fx+X.plus-X.minus).toFixed(2)),left=Math.max(0,+(net-X.paid).toFixed(2));return{base,allow,ded,inst,late,abs,lateMin,absDays,net,fixed:fx,comm:X.comm,bonus:X.bonus,rec,paid:X.paid,left}}
+/* عمولة المندوب (من فواتيره) + المكافآت والإضافي. حركات المناديب القديمة (db.pay) بتتحسب هنا كمان: إضافي ومكافأة (+)، خصم (−)، صرف (اتصرف قبل كده) */
+function hrExtra(e,m){let comm=0,plus=0,minus=0,paid=0,bonus=0;const u=e.uid&&db.users.find(x=>x.id==e.uid);
+ if(u&&(u.emp||u.comm)&&typeof repComm==='function')comm=Math.max(0,+repComm(u,d=>d.startsWith(m)).comm.toFixed(2));
+ db.hrded.filter(x=>x.eid==e.id&&x.k==='bonus'&&x.date.startsWith(m)).forEach(x=>bonus+=x.amt);
+ if(u)(db.pay||[]).filter(x=>x.uid==u.id&&x.month===m).forEach(x=>{if(x.type==='ot'||x.type==='bonus')bonus+=x.amount;else if(x.type==='ded')minus+=x.amount;else if(x.type==='paid')paid+=x.amount});
+ if(u)(db.rpay||[]).filter(x=>x.uid==u.id&&String(x.date||'').startsWith(m)).forEach(x=>paid+=x.amount);
+ return{comm,bonus,plus:comm+bonus,minus,paid}}
 /* المرتب ممكن يتصرف دفعة واحدة أو على دفعات. المتبقي بيتحسب لكل موظف وكل شهر. سجلات قديمة من غير دفعات = مصروفة كاملة */
 const hrPaid=r=>r?(Array.isArray(r.pays)?r.pays.reduce((a,x)=>a+(+x.amt||0),0):(+r.net||0)):0;
 const hrPill=(t,c)=>`<span class="pill ${c||''}">${t}</span>`;
@@ -1090,8 +1050,8 @@ R['/hr']=(sub,id)=>{HRS();const sg=location.hash.slice(1).split('?')[0].split('/
 Object.assign(ROUTE_PERM,{'/hr':'hr.view'});
 
 /* ---------- بطاقات الموظفين ---------- */
-function hrEmps(){head('بطاقات الموظفين',true);const act=db.staff.filter(e=>e.st!=='موقوف'),unl=db.users.filter(u=>!db.staff.some(e=>e.uid==u.id)).length;
- return `<button class="btn" data-need="hr.manage" onclick="location.hash='#/hr/emp/new'">＋ موظف جديد</button>${unl?`<button class="btn sec" data-need="hr.manage" onclick="hrMkFromUsers()">🔗 عمل بطاقة موظف لكل مستخدم مالوش بطاقة (${unl})</button>`:''}<div class="mg" style="margin-top:10px">${db.staff.map(e=>`<a class="mgc" href="#/hr/emp/${e.id}"><i>${esc((e.name||'?')[0])}</i><b>${esc(e.name)}</b><small>${esc(e.job||'')}${e.dept?' · '+esc(e.dept):''}</small><small>${e.hire?'📅 تعيين '+e.hire:''}</small><em>${e.st==='موقوف'?'موقوف':'نشط'}</em></a>`).join('')||'<div class="empty">لسه مفيش موظفين. دوس "موظف جديد".</div>'}</div>`}
+function hrEmps(){head('بطاقات الموظفين',true);const act=db.staff.filter(e=>e.st!=='موقوف');
+ return `<button class="btn" data-need="hr.manage" onclick="location.hash='#/hr/emp/new'">＋ موظف جديد</button><div class="mg" style="margin-top:10px">${db.staff.map(e=>`<a class="mgc" href="#/hr/emp/${e.id}"><i>${esc((e.name||'?')[0])}</i><b>${esc(e.name)}</b><small>${esc(e.job||'')}${e.dept?' · '+esc(e.dept):''}</small><small>${e.hire?'📅 تعيين '+e.hire:''}</small><em>${e.st==='موقوف'?'موقوف':'نشط'}</em></a>`).join('')||'<div class="empty">لسه مفيش موظفين. دوس "موظف جديد".</div>'}</div>`}
 function hrEmp1(id){head('بطاقة موظف',true);const H=HRS(),n=id==='new',e=n?{st:'نشط'}:hrEmp(id);if(!n&&!e.id)return nf();
  const m=today().slice(0,7),st=n?null:attStats(e,m+'-01',today()),pc=n?null:payCalc(e,m);
  const lv=n?0:db.hrlv.filter(l=>l.eid==e.id&&l.st==='معتمدة'&&l.type==='سنوية'&&l.from.startsWith(today().slice(0,4))).reduce((s,l)=>s+l.days,0);
@@ -1100,20 +1060,20 @@ function hrEmp1(id){head('بطاقة موظف',true);const H=HRS(),n=id==='new',
  const bd=e.birth?(()=>{const t=today(),b=t.slice(0,4)+e.birth.slice(4);const nb=b<t?(+t.slice(0,4)+1)+e.birth.slice(4):b;return daysTo(nb)})():null;
  return `${n?'':`<div class="card out"><h2>👤 ${esc(e.name)} ${hrPill(e.st==='موقوف'?'موقوف':'نشط',e.st==='موقوف'?'bad':'ok')}</h2><div class="s" style="color:var(--mut)">${esc(e.job||'')} ${e.dept?'· '+esc(e.dept):''} ${e.phone?'· '+esc(e.phone):''}</div>
  <div class="kpis" style="margin-top:10px"><div class="kpi" style="--c:#2b5aa1"><small>حضور الشهر</small><b>${st.pres} يوم</b></div><div class="kpi" style="--c:#f0a500"><small>تأخير</small><b>${st.late} مرة · ${st.lateMin} د</b></div><div class="kpi" style="--c:#e4572e"><small>غياب</small><b>${st.abs} يوم</b></div><div class="kpi" style="--c:#1f6fd1"><small>صافي مرتب الشهر</small><b>${fmt(pc.net)}</b></div></div>
- <div class="stat"><span>📅 تاريخ التعيين</span><b>${e.hire||'—'}${e.hire?' ('+Math.max(0,Math.floor((new Date()-new Date(e.hire))/864e5/30.4))+' شهر)':''}</b></div><div class="stat"><span>🎂 ميلاد</span><b>${e.birth||'—'}${bd!==null?' (بعد '+bd+' يوم)':''}</b></div><div class="stat"><span>📄 نهاية العقد</span><b>${e.contract||'—'}${e.contract&&daysTo(e.contract)<=30?' ⚠️':''}</b></div><div class="stat"><span>🏖 رصيد الإجازة السنوية</span><b>${(+H.leaveDays||21)-lv} من ${H.leaveDays||21} يوم</b></div><div class="stat"><span>💳 سلف متبقية</span><b>${fmt(adv)}</b></div>${e.loc?`<div class="stat"><span>🚚 العربية</span><b>${esc(locName(e.loc))}</b></div>`:''}<div class="stat"><span>💰 المرتب الأساسي</span><b>${fmt(e.salary||0)}</b></div></div>`}
+ <div class="stat"><span>📅 تاريخ التعيين</span><b>${e.hire||'—'}${e.hire?' ('+Math.max(0,Math.floor((new Date()-new Date(e.hire))/864e5/30.4))+' شهر)':''}</b></div><div class="stat"><span>🎂 ميلاد</span><b>${e.birth||'—'}${bd!==null?' (بعد '+bd+' يوم)':''}</b></div><div class="stat"><span>📄 نهاية العقد</span><b>${e.contract||'—'}${e.contract&&daysTo(e.contract)<=30?' ⚠️':''}</b></div><div class="stat"><span>🏖 رصيد الإجازة السنوية</span><b>${(+H.leaveDays||21)-lv} من ${H.leaveDays||21} يوم</b></div><div class="stat"><span>💳 سلف متبقية</span><b>${fmt(adv)}</b></div>${e.loc?`<div class="stat"><span>🚚 العربية</span><b>${esc(locName(e.loc))}</b></div>`:''}${(()=>{const u=e.uid&&db.users.find(x=>x.id==e.uid);return u?`<div class="stat"><span>🔐 مستخدم التطبيق</span><b><a onclick="location.hash='#/user/${u.id}'" style="color:var(--g3)">${esc(u.username||u.name)} · ${esc((roleOf(u)||{}).name||u.role||'')} ↗</a></b></div><div class="stat"><span>📍 الأماكن المسموحة</span><b>${(u.locs||[]).map(l=>esc(locName(l))).join('، ')||'كل الأماكن'}</b></div>${u.emp||u.comm?`<div class="stat"><span>💹 عمولة الشهر</span><b>${fmt(pc.comm||0)}</b></div>`:''}`:''})()}<div class="stat"><span>💰 المرتب الأساسي</span><b>${fmt(e.salary||0)}</b></div></div>`}
  <div class="card"><h2>${n?'موظف جديد':'تعديل البيانات'}</h2><div class="row2">${F('name','الاسم')}${F('job','الوظيفة')}</div><div class="row2">${F('dept','القسم')}${F('phone','التليفون','tel')}</div><div class="row2">${F('nid','الرقم القومي')}${F('birth','تاريخ الميلاد','date')}</div><div class="row2">${F('hire','تاريخ التعيين','date')}${F('contract','نهاية العقد','date')}</div><div class="row2">${F('salary','المرتب الأساسي','number')}${F('allow','بدلات شهرية (تضاف للمرتب)','number')}</div><div class="row2">${F('emerg','تليفون طوارئ','tel')}<div><label>خصم التأخير والغياب تلقائي</label><select id="e_pen"><option value="yes" ${e.pen!=='no'?'selected':''}>مفعّل</option><option value="no" ${e.pen==='no'?'selected':''}>لا (بدون حضور)</option></select></div></div>${F('addr','العنوان')}
  <div class="row2"><div><label>الحالة</label><select id="e_st"><option ${e.st!=='موقوف'?'selected':''}>نشط</option><option ${e.st==='موقوف'?'selected':''}>موقوف</option></select></div><div><label>العربية / المكان (للسواق)</label><select id="e_loc"><option value="">—</option>${db.wh.map(w=>`<option value="w${w.id}" ${e.loc==='w'+w.id?'selected':''}>${esc(w.name)}</option>`).join('')}</select></div><div><label>تسجيل الحضور</label><select id="e_field"><option value="" ${e.field?'':'selected'}>جوه نطاق الشركة بس</option><option value="1" ${e.field?'selected':''}>من أي مكان (مندوب / سواق)</option></select></div><div><label>مرتبط بمستخدم (للحضور)</label><select id="e_uid"><option value="">—</option>${db.users.map(u=>`<option value="${u.id}" ${e.uid==u.id?'selected':''}>${esc(u.name)}</option>`).join('')}</select></div></div>${F('notes','ملاحظات')}
  <button class="btn" data-need="hr.manage" onclick="hrSaveEmp('${id}')">💾 حفظ</button>${n?'':`<button class="btn del" data-need="hr.manage" onclick="hrDelEmp(${e.id})">🗑 حذف الموظف</button>`}</div>`}
 function hrSaveEmp(id){const g=k=>($('#e_'+k)||{}).value||'';const name=g('name').trim();if(!name)return toast('اكتب اسم الموظف');
  const d={name,job:g('job').trim(),dept:g('dept').trim(),phone:g('phone').trim(),nid:g('nid').trim(),birth:g('birth'),hire:g('hire'),contract:g('contract'),salary:+g('salary')||0,allow:+g('allow')||0,pen:g('pen')||'yes',emerg:g('emerg').trim(),addr:g('addr').trim(),st:g('st'),uid:+g('uid')||0,field:g('field')?1:0,loc:g('loc'),notes:g('notes').trim()};
  if(id==='new'){d.id=nid('hr');db.staff.push(d);save();toast('اتضاف ✅');location.hash='#/hr/emp/'+d.id}else{Object.assign(hrEmp(id),d);save();toast('اتحفظ ✅');route()}}
-function hrDelEmp(id){if(!confirm('حذف الموظف وكل سجلاته؟'))return;db.staff=db.staff.filter(e=>e.id!=id);['hrded','hradv','hrlv','hratt','hrpay'].forEach(k=>db[k]=db[k].filter(x=>x.eid!=id));save();location.hash='#/hr/emps'}
+function hrDelEmp(id){if(!confirm('حذف الموظف وكل سجلاته؟'))return;{const x=hrEmp(id);if(x.uid){const h=HRS();h.skip=h.skip||[];h.skip.push(x.uid)}}db.staff=db.staff.filter(e=>e.id!=id);['hrded','hradv','hrlv','hratt','hrpay'].forEach(k=>db[k]=db[k].filter(x=>x.eid!=id));save();location.hash='#/hr/emps'}
 
 /* ---------- الخصومات ---------- */
-function hrDed(){head('الخصومات',true);const l=db.hrded.filter(x=>x.date.startsWith(HRM)).sort((a,b)=>b.date.localeCompare(a.date)),T=l.reduce((s,x)=>s+x.amt,0);
- return `<div class="card" data-need="hr.manage"><h2>＋ خصم جديد</h2><label>الموظف</label><select id="d_e">${hrOpts()}</select><div class="row2"><div><label>المبلغ</label><input id="d_a" type="number" inputmode="decimal"></div><div><label>التاريخ</label><input id="d_d" type="date" value="${today()}"></div></div><label>السبب</label><input id="d_r" placeholder="تأخير، غياب، تلفيات…"><button class="btn" onclick="hrAddDed()">حفظ الخصم</button></div>
- <div class="card out"><h2>خصومات شهر <input type="month" value="${HRM}" onchange="HRM=this.value;route()" style="width:auto;display:inline-block"></h2>${l.length?l.map(x=>`<div class="item"><div class="main"><div class="t">${esc(hrEmp(x.eid).name||'—')}</div><div class="s">${x.date} · ${esc(x.reason||'')}</div></div><div class="num neg">${fmt(x.amt)}</div><button class="chipb" data-need="hr.manage" onclick="hrDel('hrded',${x.id})">✕</button></div>`).join('')+`<div class="stat"><span>الإجمالي</span><b>${fmt(T)}</b></div>`:'<div class="empty">مفيش خصومات الشهر ده</div>'}</div>`}
-function hrAddDed(){const a=+$('#d_a').value,e=+$('#d_e').value;if(!e)return toast('اختار موظف');if(!(a>0))return toast('اكتب المبلغ');db.hrded.push({id:nid('hr'),eid:e,amt:a,date:$('#d_d').value||today(),reason:$('#d_r').value.trim()});save();toast('اتسجل ✅');route()}
+function hrDed(){head('الخصومات والمكافآت',true);const l=db.hrded.filter(x=>x.date.startsWith(HRM)).sort((a,b)=>b.date.localeCompare(a.date)),T=l.reduce((s,x)=>s+x.amt,0);
+ return `<div class="card" data-need="hr.manage"><h2>＋ خصم أو مكافأة</h2><label>النوع</label><select id="d_k"><option value="">خصم (−)</option><option value="bonus">مكافأة / إضافي (+)</option></select><label>الموظف</label><select id="d_e">${hrOpts()}</select><div class="row2"><div><label>المبلغ</label><input id="d_a" type="number" inputmode="decimal"></div><div><label>التاريخ</label><input id="d_d" type="date" value="${today()}"></div></div><label>السبب</label><input id="d_r" placeholder="تأخير، غياب، تلفيات…"><button class="btn" onclick="hrAddDed()">حفظ</button></div>
+ <div class="card out"><h2>خصومات ومكافآت شهر <input type="month" value="${HRM}" onchange="HRM=this.value;route()" style="width:auto;display:inline-block"></h2>${l.length?l.map(x=>`<div class="item"><div class="main"><div class="t">${esc(hrEmp(x.eid).name||'—')}</div><div class="s">${x.date} · ${x.k==='bonus'?'مكافأة · ':''}${esc(x.reason||'')}</div></div><div class="num ${x.k==='bonus'?'':'neg'}">${x.k==='bonus'?'+':''}${fmt(x.amt)}</div><button class="chipb" data-need="hr.manage" onclick="hrDel('hrded',${x.id})">✕</button></div>`).join('')+`<div class="stat"><span>الإجمالي</span><b>${fmt(T)}</b></div>`:'<div class="empty">مفيش خصومات أو مكافآت الشهر ده</div>'}</div>`}
+function hrAddDed(){const a=+$('#d_a').value,e=+$('#d_e').value;if(!e)return toast('اختار موظف');if(!(a>0))return toast('اكتب المبلغ');db.hrded.push({id:nid('hr'),eid:e,amt:a,k:$('#d_k').value,date:$('#d_d').value||today(),reason:$('#d_r').value.trim()});save();toast('اتسجل ✅');route()}
 function hrDel(k,id){if(!confirm('تأكيد الحذف؟'))return;db[k]=db[k].filter(x=>x.id!=id);save();route()}
 
 /* ---------- السلف ---------- */
@@ -1202,8 +1162,8 @@ function hrAttRep(){head('تقرير الحضور والتأخير',true);const 
 /* ---------- المرتبات ---------- */
 function hrPay(){head('المرتبات',true);const list=db.staff.filter(e=>e.st!=='موقوف'),rows=list.map(e=>({e,c:payCalc(e,HRM)})),T=rows.reduce((s,r)=>s+r.c.net,0),LT=rows.reduce((s,r)=>s+r.c.left,0);
  return `<div class="card noprint"><label>الشهر</label><input type="month" value="${HRM}" onchange="HRM=this.value;route()"></div>
- <div class="card out"><h2>💵 مرتبات ${HRM} (الإجمالي ${fmt(T)} · المتبقي ${fmt(LT)})</h2>${rows.length?rtbl(['الموظف','أساسي+بدلات','خصومات','سلفة','تأخير','غياب','الصافي','المصروف','المتبقي','الحالة'],rows.map(({e,c})=>[esc(e.name),fmt(c.base+c.allow),fmt(c.ded),fmt(c.inst),fmt(c.late),fmt(c.abs),`<b>${fmt(c.net)}</b>`,fmt(c.paid),c.left>0?`<b class="neg">${fmt(c.left)}</b>`:'0',`<a class="chipb noprint" href="#/hr/slip/${e.id}">🧾</a> `+(c.rec&&c.left<=0?'✅ اتصرف كامل':`<button class="chipb noprint" data-need="hr.manage" onclick="hrPayOut(${e.id})">${c.rec?'صرف دفعة':'صرف'}</button>`)])):'<div class="empty">ضيف موظفين الأول</div>'}</div><div class="s" style="color:var(--mut);font-size:12px">تقدر تصرف المرتب كله مرة واحدة أو على دفعات، والمتبقي بيتحسب لكل موظف. كل دفعة بتتسجل مصروف مرتبات في الخزينة، وخصم السلفة بيتحسب مرة واحدة مع أول دفعة.</div>`}
-function hrPayOut(id){const e=hrEmp(id),c=payCalc(e,HRM);if(c.rec&&c.left<=0)return toast('اتصرف كامل قبل كده');const left=c.rec?c.left:c.net;
+ <div class="card out"><h2>💵 مرتبات ${HRM} (الإجمالي ${fmt(T)} · المتبقي ${fmt(LT)})</h2>${rows.length?rtbl(['الموظف','أساسي+بدلات','عمولة/مكافأة','خصومات','سلفة','تأخير','غياب','الصافي','المصروف','المتبقي','الحالة'],rows.map(({e,c})=>[esc(e.name),fmt(c.base+c.allow),fmt((c.comm||0)+(c.bonus||0)),fmt(c.ded),fmt(c.inst),fmt(c.late),fmt(c.abs),`<b>${fmt(c.net)}</b>`,fmt(c.paid),c.left>0?`<b class="neg">${fmt(c.left)}</b>`:'0',`<a class="chipb noprint" href="#/hr/slip/${e.id}">🧾</a> `+(c.rec&&c.left<=0?'✅ اتصرف كامل':`<button class="chipb noprint" data-need="hr.manage" onclick="hrPayOut(${e.id})">${c.rec?'صرف دفعة':'صرف'}</button>`)])):'<div class="empty">ضيف موظفين الأول</div>'}</div><div class="s" style="color:var(--mut);font-size:12px">تقدر تصرف المرتب كله مرة واحدة أو على دفعات، والمتبقي بيتحسب لكل موظف. كل دفعة بتتسجل مصروف مرتبات في الخزينة، وخصم السلفة بيتحسب مرة واحدة مع أول دفعة.</div>`}
+function hrPayOut(id){const e=hrEmp(id),c=payCalc(e,HRM);if(c.rec&&c.left<=0)return toast('اتصرف كامل قبل كده');const left=c.left;
  if(left<=0){if(!confirm('صافي المرتب صفر. تسجيله كمصروف؟'))return;return hrPayDo(id,0)}
  const d=document.createElement('div');d.style.cssText='position:fixed;inset:0;z-index:98;background:#0009;display:flex;align-items:center;justify-content:center;padding:20px';
  d.innerHTML=`<div class="card" style="width:100%;max-width:380px"><h2>💵 صرف مرتب ${esc(e.name)} · ${HRM}</h2><div class="stat"><span>الصافي</span><b>${fmt(c.net)}</b></div><div class="stat"><span>اتصرف</span><b>${fmt(c.paid)}</b></div><div class="stat"><span>المتبقي</span><b>${fmt(left)}</b></div><label>المبلغ اللي هيتصرف دلوقتي</label><input id="hp_a" type="number" inputmode="decimal" value="${left}"><div class="er" id="hp_e" style="color:#c0392b;font-size:13px;min-height:18px;margin-top:6px"></div><div class="row2"><button class="btn" style="margin:0" id="hp_ok">صرف</button><button class="btn sec" style="margin:0" id="hp_no">إلغاء</button></div></div>`;
@@ -1211,14 +1171,13 @@ function hrPayOut(id){const e=hrEmp(id),c=payCalc(e,HRM);if(c.rec&&c.left<=0)ret
  document.getElementById('hp_ok').onclick=()=>{const a=+document.getElementById('hp_a').value;if(!(a>0))return document.getElementById('hp_e').textContent='اكتب مبلغ أكبر من صفر';if(a>left+0.001)return document.getElementById('hp_e').textContent='المبلغ أكبر من المتبقي ('+fmt(left)+')';d.remove();hrPayDo(id,a)}}
 function hrPayDo(id,a){const e=hrEmp(id),c=payCalc(e,HRM);let rec=c.rec;
  if(!rec){db.hradv.filter(x=>x.eid==id).forEach(x=>{const p=Math.min(advLeft(x),+x.monthly||advLeft(x));x.repaid=(x.repaid||0)+p});
-  rec={id:nid('hr'),eid:id,month:HRM,net:c.net,ded:c.ded,inst:c.inst,base:c.base,allow:c.allow,late:c.late,abs:c.abs,lateMin:c.lateMin,absDays:c.absDays,date:today(),pays:[]};db.hrpay.push(rec)}
+  rec={id:nid('hr'),eid:id,month:HRM,net:c.fixed,ded:c.ded,inst:c.inst,base:c.base,allow:c.allow,late:c.late,abs:c.abs,lateMin:c.lateMin,absDays:c.absDays,date:today(),pays:[]};db.hrpay.push(rec)}
  if(!Array.isArray(rec.pays))rec.pays=[{date:rec.date,amt:rec.net}];
  if(a>0){rec.pays.push({id:nid('hr'),date:today(),ts:Date.now(),amt:+a,by:db.me});const left=+(rec.net-hrPaid(rec)).toFixed(2);
   db.exps.push({id:nid('exp'),date:today(),ts:Date.now(),by:db.me,cat:'مرتبات',amount:+a,note:'مرتب '+e.name+' '+HRM+(left>0?' (دفعة، متبقي '+fmt(left)+')':'')})}
  save();toast('اتصرف ✅');route()}
 
 /* ---------- ربط بالقوائم والتقارير والرئيسية ---------- */
-RT.push(['attlate','⏱️ الحضور والتأخير']);RPD.attlate='حضور وتأخير وغياب كل موظف';
 const _rbH=repBody;repBody=function(t,PR){if(t==='attlate'){HRS();return attTable(RP.from,RP.to)}return _rbH(t,PR)};
 const _dashHR=R['/'];R['/']=()=>{let h=_dashHR();if(!can('hr.view'))return h;HRS();const td=today(),H=db.settings.hr,A=db.staff.filter(e=>e.st!=='موقوف');if(!A.length)return h;
  let p=0,l=0,a=0;const late=[];A.forEach(e=>{const r=db.hratt.find(x=>x.eid==e.id&&x.date===td);if(r){p++;const m=hrMin(r.in)-hrMin(H.start);if(m>(+H.grace||0)){l++;late.push(e.name+' '+m+'د')}}else if(!onLeave(e.id,td)&&hrMin(hrNow())>hrMin(H.start)+(+H.grace||0))a++});
@@ -1228,7 +1187,7 @@ const _dashHR=R['/'];R['/']=()=>{let h=_dashHR();if(!can('hr.view'))return h;HRS
 function hrSlip(id){head('قسيمة مرتب',true);const e=hrEmp(id);if(!e.id)return nf();const c=payCalc(e,HRM),R=(l,v,cl)=>v?`<div class="stat"><span>${l}</span><b class="${cl||''}">${fmt(v)}</b></div>`:'';
  return `<div class="card noprint"><label>الشهر</label><input type="month" value="${HRM}" onchange="HRM=this.value;route()"></div>
  <div class="card out"><h2>🧾 قسيمة مرتب · ${HRM}</h2><div class="stat"><span>الموظف</span><b>${esc(e.name)}</b></div><div class="stat"><span>الوظيفة</span><b>${esc(e.job||'—')}${e.dept?' · '+esc(e.dept):''}</b></div>
- ${R('المرتب الأساسي',c.base)}${R('بدلات',c.allow)}${R('خصومات',-c.ded&&c.ded,'neg')}${R('خصم سلفة',c.inst,'neg')}${R('خصم تأخير ('+c.lateMin+' دقيقة)',c.late,'neg')}${R('خصم غياب ('+c.absDays+' يوم)',c.abs,'neg')}
+ ${R('المرتب الأساسي',c.base)}${R('بدلات',c.allow)}${R('عمولة المبيعات',c.comm)}${R('مكافآت وإضافي',c.bonus)}${R('خصومات',-c.ded&&c.ded,'neg')}${R('خصم سلفة',c.inst,'neg')}${R('خصم تأخير ('+c.lateMin+' دقيقة)',c.late,'neg')}${R('خصم غياب ('+c.absDays+' يوم)',c.abs,'neg')}
  <div class="tot"><div class="r grand"><span>الصافي</span><span>${fmt(c.net)} ج.م</span></div></div><div class="s" style="color:var(--mut)">${c.rec?(c.left>0?'⏳ اتصرف '+fmt(c.paid)+' والمتبقي '+fmt(c.left):'✅ اتصرف كامل'):'لسه ما اتصرفش'}${c.rec&&Array.isArray(c.rec.pays)&&c.rec.pays.length?'<div style="margin-top:6px">'+c.rec.pays.map(p=>'<div class="stat"><span>دفعة '+p.date+'</span><b>'+fmt(p.amt)+'</b></div>').join('')+'</div>':''}</div><div class="s" style="margin-top:22px;display:flex;justify-content:space-between"><span>توقيع الموظف: ________</span><span>المحاسب: ________</span></div></div>`}
 
 
@@ -1237,15 +1196,16 @@ function stDrvHtml(){HRS();const l=(typeof stLoc!=='undefined'&&stLoc!=='all')?[
  const ds=db.staff.filter(e=>e.loc&&e.st!=='موقوف'&&l.includes(e.loc));
  return ds.length?'<div class="s" style="margin-top:8px;font-size:13px">'+ds.map(e=>'🧑‍✈️ السواق: <b>'+esc(e.name)+'</b> · '+esc(locName(e.loc))+(e.phone?' · '+esc(e.phone):'')).join('<br>')+'</div>':''}
 
-/* حضور وانصراف سريع من الرئيسية لأي مستخدم مربوط ببطاقة موظف (مندوب / سواق / أمين مخزن / محاسب). التسجيل نفسه هو hrCheck (GPS + وقت + سينك) وبيدخل في تقرير التأخير والمرتبات */
-function hrMkFromUsers(){HRS();const us=db.users.filter(u=>!db.staff.some(e=>e.uid==u.id));if(!us.length)return toast('كل المستخدمين ليهم بطاقات');
- if(!confirm('هيتعمل '+us.length+' بطاقة موظف (مرتب صفر، تسجيل من أي مكان للمناديب). تكمل؟'))return;
- us.forEach(u=>db.staff.push({id:nid('hr'),name:u.name,job:({rep:'مندوب',keeper:'أمين مخزن',accountant:'محاسب'})[u.role]||'',salary:0,allow:0,pen:'yes',st:'نشط',uid:u.id,field:(u.emp||u.role==='rep')?1:0}));
- save();toast('اتعملت ✅ كمّل المرتب لكل واحد');route()}
+/* حضور وانصراف سريع من الرئيسية لأي مستخدم مربوط ببطاقة موظف. التسجيل نفسه هو hrCheck (GPS + وقت + سينك) وبيدخل في تقرير التأخير والمرتبات */
 const _dashAtt=R['/'];R['/']=()=>{const h=_dashAtt();HRS();const e=db.staff.find(x=>x.uid==db.me&&x.st!=='موقوف');if(!e)return h;const H=db.settings.hr,td=today(),r=db.hratt.find(a=>a.eid==e.id&&a.date===td);
  const st=!r?'لسه ما سجلتش حضور النهارده':'🟢 حضور '+r.in+(r.out?' · 🔴 انصراف '+r.out:'');
  const btn=!r?`<button class="btn" onclick="hrCheck('in')">🟢 تسجيل حضور</button>`:(H.useOut&&!r.out?`<button class="btn sec" onclick="hrCheck('out')">🔴 تسجيل انصراف</button>`:'<div class="s" style="color:#1c4b92">✅ تم تسجيل اليوم</div>');
  return `<div class="card"><h2>⏱️ حضوري · ${hrNow()}</h2><input type="hidden" id="at_e" value="${e.id}"><div class="s" style="margin-bottom:8px">${esc(e.name)} · ${st}</div>${btn}<div id="at_msg" class="alert" style="margin-top:8px;display:none"></div></div>`+h};
+
+/* المناديب والموظفين شاشة واحدة: شاشات المناديب القديمة بتحوّل على بطاقة الموظف / كشف المرتبات */
+window.addEventListener('load',()=>{
+ R['/reps']=()=>{head('الموظفين',true);setTimeout(()=>{location.hash='#/hr/emps'},0);return ''};
+ R['/rep']=id=>{head('الموظفين',true);const e=db.staff.find(x=>x.uid==id);setTimeout(()=>{location.hash=e?'#/hr/emp/'+e.id:'#/hr/emps'},0);return ''}});
 
 
 /* =====================================================================
@@ -1333,7 +1293,7 @@ function attRcpt(id){const i=document.createElement('input');i.type='file';i.acc
 const _delExp2=delExp;delExp=function(id){_delExp2(id);if(!db.exps.some(e=>e.id==id))delete db.rcpt[id]};
 
 /* ---------- أعمار الديون ---------- */
-RT.push(['aging','⏳ أعمار الديون']);RPD.aging='مديونيات العملاء حسب مدة التأخير';
+RT.push(['aging','⏳ مديونيات العملاء (أعمار الديون)']);RPD.aging='مديونيات العملاء حسب مدة التأخير';
 function agingRows(){const rows=[];db.customers.forEach(c=>{recalc(c);let b=c.balance||0;if(b<=0.5)return;const B=[0,0,0,0];
  db.invoices.filter(i=>i.cid==c.id).sort((p,q)=>(q.date+q.ts).toString().localeCompare((p.date+p.ts).toString())).forEach(i=>{if(b<=0)return;const v=Math.min(b,i.total),d=-daysTo(i.date);B[d<=30?0:d<=60?1:d<=90?2:3]+=v;b-=v});if(b>0)B[3]+=b;rows.push({c,B,t:B.reduce((s,x)=>s+x,0)})});return rows.sort((p,q)=>q.t-p.t)}
 const _rbV2=repBody;repBody=function(t,PR){if(t==='aging'){V2();const r=agingRows();if(!r.length)return '<div class="empty">مفيش مديونيات</div>';const S=[0,1,2,3].map(i=>r.reduce((s,x)=>s+x.B[i],0));
