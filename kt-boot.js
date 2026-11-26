@@ -64,6 +64,10 @@ const _rsAl=R['/settings'];R['/settings']=()=>{const h=_rsAl();if(!can('users.ma
  return h+`<div class="card"><h2>💾 تذكير النسخة الاحتياطية</h2><label>كل قد إيه يفكّرك؟</label><select onchange="db.settings.bk=+this.value;save();toast('اتحفظ ✅');route()">${[[0,'موقوف'],[1,'كل يوم'],[7,'كل أسبوع'],[30,'كل شهر']].map(([v,t])=>`<option value="${v}" ${d==v?'selected':''}>${t}</option>`).join('')}</select><div class="s" style="color:var(--mut);padding-top:6px">المتصفح مايقدرش ينزّل ملف لوحده والتطبيق مقفول، فبيظهر كارت في الرئيسية بزرار واحد. النسخة التلقائية على سيرفر جاية في مرحلة السيرفر.</div></div>`};
 function demoAlerts(){const p=db.products;if(p[0]){p[0].min=Math.max(+p[0].min||0,(+p[0].stock||0)+5)}if(p[1]&&!p[1].exp){const x=new Date();x.setDate(x.getDate()+12);p[1].exp=x.toISOString().slice(0,10)}const c=db.customers[0];if(c&&!(+c.limit>0)){recalc(c);c.limit=Math.max(1,Math.floor((c.balance||0)/2))}}
 
+/* تقرير "وصل للحد الأدنى": كان تنبيه الرئيسية بيفتح التقارير على نوع تقرير مش موجود وبيعمل خطأ */
+RT.push(['low','📉 أصناف وصلت للحد الأدنى']);
+const _rbLow=repBody;repBody=function(t,PR){if(t==='low'){const rows=db.products.filter(p=>+p.min>0&&+p.stock<=+p.min).sort((a,b)=>(+a.stock)-(+b.stock));return rows.length?rtbl(['الصنف','الرصيد','الحد الأدنى','الناقص'],rows.map(p=>[esc(p.name),fmt(p.stock)+' '+esc(unitT(p)),fmt(p.min),fmt(Math.max(0,(+p.min)-(+p.stock)))])):'<div class="empty">مفيش أصناف وصلت للحد الأدنى</div>'}return _rbLow(t,PR)};
+
 
 /* ---------- سند قبض وسند صرف ----------
    db.vch = [{id,no,k:'in'|'out',date,ts,by(المستلم/الدافع),pk:'c'|'s',pid,amount,acct,note}]
