@@ -915,7 +915,7 @@ function autoSeed(){}
 function applyMode(){const m=localStorage.getItem('kt_mode')||'light';document.documentElement.setAttribute('data-theme',m);const t=document.querySelector('meta[name=theme-color]');if(t)t.content=m==='dark'?'#0c1015':'#13233b'}
 function toggleMode(){localStorage.setItem('kt_mode',(localStorage.getItem('kt_mode')||'light')==='dark'?'light':'dark');applyMode();const b=$('#modeb');if(b)b.textContent=modeIcon()}
 const modeIcon=()=>(localStorage.getItem('kt_mode')||'light')==='dark'?'☀️':'🌙';
-const _head0=head;head=function(t,b){_head0(t,b);const h=$('#hd');if(h&&!h.querySelector('#modeb')){const x=document.createElement('button');x.id='modeb';x.className='modeb';x.title='فاتح / داكن';x.textContent=modeIcon();x.onclick=toggleMode;h.appendChild(x)}};
+const _head0=head;head=function(t,b){_head0(t,b);const h=$('#hd');if(h&&!h.querySelector('#modeb')){const x=document.createElement('button');x.id='modeb';x.className='modeb';x.title='فاتح / داكن';x.textContent=modeIcon();x.onclick=toggleMode;h.appendChild(x)}if(window.__ksyP&&h&&!h.contains(window.__ksyP))h.appendChild(window.__ksyP)};
 applyMode();
 
 /* ---------- حجم الواجهة (الخط والأيقونات مع بعض): من 80% لـ 140%، بيتحفظ على الجهاز ---------- */
@@ -1719,10 +1719,10 @@ const KSY=(()=>{
  async function unpack(str,kb){return JSON.parse(td.decode(await gun(await open(kb,str))))}
  async function readAll(m,kb){const ver=num(m.fields.ver),n=num(m.fields.n);let s='';for(let i=0;i<n;i++){const d=await get('d'+ver+'_'+i);if(!d)throw new Error('قطعة ناقصة في السحابة');s+=d.fields.d.stringValue}return unpack(s,kb)}
  function setS(s,m){st={s,t:s==='ok'?Date.now():st.t,m:m||''};pill();try{if(location.hash==='#/sync'&&!KSY._ed)KSY.draw()}catch(e){}}
- function pill(){let p=document.getElementById('ksy_pill');const c=cfg();if(!c||typeof DEMO!=='undefined'&&DEMO){if(p)p.remove();return}
-  if(!p){p=document.createElement('div');p.id='ksy_pill';p.onclick=()=>{location.hash='#/sync'};document.body.appendChild(p)}
+ function pill(){let p=document.getElementById('ksy_pill');const c=cfg();if(!c||typeof DEMO!=='undefined'&&DEMO){if(p)p.remove();window.__ksyP=null;return}
+  if(!p){p=window.__ksyP;if(!p){p=document.createElement('button');p.id='ksy_pill';p.className='modeb';p.onclick=()=>{location.hash='#/sync'};window.__ksyP=p}const h=document.getElementById('hd');if(h)h.appendChild(p)}
   const I={ok:['☁️','متزامن','#1c4b92'],sync:['🔄','بيتزامن…','#2f5fa8'],dirty:['⏳','في انتظار المزامنة','#b07a00'],off:['📴','أوفلاين','#6b727c'],err:['⚠️','مشكلة في المزامنة','#c0392b'],conflict:['⚠️','تعارض: اضغط','#c0392b']};
-  const k=(st.s==='ok'&&c.dirty)?'dirty':st.s,x=I[k]||I.ok;p.innerHTML=`<span>${x[0]}</span> ${x[1]}`;p.style.background=x[2]}
+  const k=(st.s==='ok'&&c.dirty)?'dirty':st.s,x=I[k]||I.ok;p.textContent=x[0];p.title=x[1];p.style.background=x[2]}
  /* نسخة أمان محلية قبل أي استبدال */
  function safety(){try{localStorage.setItem('kt_presync',JSON.stringify({t:Date.now(),n:(db.invoices||[]).length}))}catch(e){}}
  async function apply(d){applying=true;try{const old=db.users,keep={sync:db.sync,me:db.me};db=d;ensure();try{Auth.mergeRestore(db,old)}catch(e){}db.sync=keep.sync;db.me=Auth.uid||keep.me;raw();}finally{applying=false}try{route()}catch(e){}}
@@ -1792,7 +1792,7 @@ R['/sync']=()=>{head('المزامنة السحابية',true);const c=db.sync,s
 async function ksyConnect(){const b=document.getElementById('ky_b'),e=document.getElementById('ky_er');e.textContent='';b.disabled=true;b.textContent='جارِ الربط…';KSY._ed=1;
  try{await KSY.connect(document.getElementById('ky_e').value,document.getElementById('ky_p').value,document.getElementById('ky_d').value);KSY._ed=0;toast('اتربطت المزامنة ✅');route()}
  catch(x){KSY._ed=0;b.disabled=false;b.textContent='ربط المزامنة';e.textContent=x.message||'حصلت مشكلة'}}
-(()=>{const s=document.createElement('style');s.textContent='#ksy_pill{position:fixed;left:10px;bottom:74px;z-index:40;color:#fff;font:700 12px/1 inherit;padding:8px 11px;border-radius:20px;box-shadow:0 3px 10px #0004;cursor:pointer;opacity:.92}@media print{#ksy_pill{display:none!important}}';document.head.appendChild(s)})();
+(()=>{const s=document.createElement('style');s.textContent='#ksy_pill{margin-inline-start:6px;font-size:15px!important;padding:5px 8px!important;color:#fff}@media print{#ksy_pill{display:none!important}}';document.head.appendChild(s)})();
 
 /* ===== تغيير 50: الوحدة وعدد الوحدات + الرصيد بوحدات كاملة وعبوات ناقصة =====
    الرصيد المخزّن = عدد العبوات الداخلية. بنعرضه: (وحدات كاملة) و(عبوات ناقصة) عشان أي وحدة ناقصة تبان. */
