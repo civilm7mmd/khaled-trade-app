@@ -83,7 +83,7 @@ function stSearch(q){$('#st_l').innerHTML=stList(q)}
    ===================================================================== */
 const RP={t:'sales',g:'prod',from:today().slice(0,8)+'01',to:today(),loc:'',rep:'',sec:'',co:'',pid:'',cid:''};
 const inR=d=>d>=RP.from&&d<=RP.to;
-const RT=[['sales','📊 مبيعات حسب…'],['profit','💹 الأرباح'],['slow','🐌 راكد (ما اتباعش)'],['stockval','🏷️ قيمة المخزون'],['expiry','⏳ الصلاحية'],['perf','🏅 أداء المناديب والعمولات'],['supbal','🏭 أرصدة الموردين'],['exps','💸 المصروفات']];
+const RT=[['sales','📊 مبيعات حسب…'],['profit','💹 الأرباح'],['slow','🐌 راكد (ما اتباعش)'],['stockval','🏷️ قيمة المخزون'],['expiry','⏳ الصلاحية'],['perf','🏅 أداء المناديب والعمولات'],['exps','💸 المصروفات']];
 const GROUPS=[['day','اليوم'],['prod','الصنف'],['rep','المندوب'],['loc','المخزن/السيارة'],['sec','القسم'],['co','الشركة'],['cust','العميل'],['all','الإجمالي']];
 function saleLines(){const o=[];const P=id=>prod(id)||{};
  db.invoices.forEach(i=>{if(!inR(i.date))return;const k=i.sub?i.total/i.sub:1;i.items.forEach(it=>{const p=P(it.pid);o.push({d:i.date,pid:it.pid,name:it.name,sec:p.sec,co:p.co,loc:i.loc||'w1',rep:i.by,cid:i.cid,qty:it.qty,amt:it.qty*it.price*k,cost:it.qty*(it.cost!=null?it.cost:(p.cost||0))})})});
