@@ -1264,11 +1264,11 @@ function hrOffE(e){if(e.st==='موقوف')return true;const u=e.uid?db.users.fin
 /* 👁 إظهار الباسورد: للمدير بس. بيظهر الباسورد اللي اتحط من التطبيق (مخزن جوه ملف البيانات المشفر). الباسوردات القديمة مش بتظهر لأنها بصمة أحادية الاتجاه */
 const hrIsMgr=()=>(me().perms||[]).includes('*');
 function hrPwRow(u){if(!hrIsMgr())return '';
- if(!u.pwv)return `<div class="stat" style="align-items:flex-start"><span>الباسورد</span><b style="font-size:12px;color:var(--mut);text-align:left">مش ظاهر لأنه اتحفظ قبل كده (محفوظ مشفّر ومش بيتقري)</b></div>
+ if(!Auth.vPw(u.id))return `<div class="stat" style="align-items:flex-start"><span>الباسورد</span><b style="font-size:12px;color:var(--mut);text-align:left">مش ظاهر لأنه اتحفظ قبل كده (محفوظ مشفّر ومش بيتقري)</b></div>
  <div style="background:var(--bg2,rgba(127,127,127,.08));border-radius:10px;padding:10px;margin:6px 0"><div class="s" style="margin-bottom:6px">علشان يظهر هنا بعين 👁: اكتب الباسورد (نفس الحالي لو مش عاوز تغيّره، أو جديد) واضغط حفظ</div><div style="display:flex;gap:8px"><input id="pwset_${u.id}" dir="ltr" type="text" autocomplete="off" placeholder="الباسورد" style="flex:1"><button type="button" class="btn" style="width:auto;padding:0 16px" onclick="hrPwSet(${u.id})">💾 حفظ</button></div></div>`;
  return `<div class="stat"><span>الباسورد</span><b style="display:flex;gap:8px;align-items:center"><span id="pwv_${u.id}" dir="ltr" data-v="0">••••••••</span><button type="button" class="chipb" aria-label="إظهار" onclick="hrPwEye(${u.id})" style="font-size:18px;padding:4px 12px">👁 إظهار</button></b></div>`}
 async function hrPwSet(id){if(!hrIsMgr())return;const u=db.users.find(x=>x.id==id),el=document.getElementById('pwset_'+id);if(!u||!el)return;const v=(el.value||'').trim();if(!v){toast('اكتب الباسورد الأول');return}try{if(await userPass(u,v,false)){save();toast("اتحفظ ✅ والعين 👁 ظهرت");route()}}catch(x){toast("مقدرتش أحفظ: "+(x.message||x))}}
-function hrPwEye(id){if(!hrIsMgr())return;const u=db.users.find(x=>x.id==id),el=document.getElementById('pwv_'+id);if(!u||!el||!u.pwv)return;const on=el.dataset.v==='1';el.dataset.v=on?'0':'1';el.textContent=on?'••••••••':u.pwv}
+function hrPwEye(id){if(!hrIsMgr())return;const u=db.users.find(x=>x.id==id),el=document.getElementById('pwv_'+id);if(!u||!el||!Auth.vPw(u.id))return;const on=el.dataset.v==='1';el.dataset.v=on?'0':'1';el.textContent=on?'••••••••':Auth.vPw(u.id)}
 
 /* ===== الحسابات: قائمة واحدة للعملاء والموردين =====
    الحساب ممكن يبقى عميل ومورد في نفس الوقت (فاتحين على بعض): رصيد واحد صافي وكشف واحد.

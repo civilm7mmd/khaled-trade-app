@@ -287,7 +287,7 @@ function delUser(id){if(!DEMO&&id==Auth.uid)return toast('مينفعش تحذف 
 
 /* ===== عرض الباسورد المحفوظ للمدير بس في شاشة الدخول والصلاحيات (الباسوردات اللي اتحفظت من دلوقتي) ===== */
 function uPwShow(u){if(!(typeof hrIsMgr==='function'&&hrIsMgr())||!u)return '';
- if(!u.pwv)return `<div style="font-size:12px;color:var(--mut);margin:4px 0 8px">الباسورد مش محفوظ للعرض. اكتب باسورد جديد وحفظ علشان يظهر هنا</div>`;
+ if(!Auth.vPw(u.id))return `<div style="font-size:12px;color:var(--mut);margin:4px 0 8px">الباسورد مش محفوظ للعرض. اكتب باسورد جديد وحفظ علشان يظهر هنا</div>`;
  return `<div style="display:flex;gap:8px;align-items:center;margin:6px 0 8px"><span style="font-size:13px;color:var(--mut)">الباسورد الحالي:</span><span id="pwv_${u.id}" dir="ltr" data-v="0">••••••••</span><button type="button" class="chipb" aria-label="إظهار" onclick="hrPwEye(${u.id})">👁</button></div>`}
 
 /* ---------- سجل الرقابة: كل عملية حساسة بتتسجل بالمستخدم والوقت والسبب ---------- */

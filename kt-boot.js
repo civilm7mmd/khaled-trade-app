@@ -328,7 +328,7 @@ const Auth=(()=>{
  const getKS=()=>{try{return JSON.parse(localStorage.getItem('kt_ks')||'null')}catch(e){return null}};
  const putKS=k=>localStorage.setItem('kt_ks',JSON.stringify(k));
  const low=s=>String(s||'').trim().toLowerCase();
- let dek=null,DK=null,uid=0,prev=0,la=Date.now(),t0=Date.now(),q=Promise.resolve(),fresh=false;
+ let mk=null,VP=null,dek=null,DK=null,uid=0,prev=0,la=Date.now(),t0=Date.now(),q=Promise.resolve(),fresh=false;
  const COMMON=['12345678','123456789','1234567890','password','password1','qwertyui','11111111','00000000','iloveyou','admin123','khaledtrade','abcd1234','12341234'];
  const pwErr=(pw,un)=>{pw=String(pw||'');if(pw.length<8)return 'الباسورد لازم يكون 8 حروف أو أرقام على الأقل';if(/^(.)\1+$/.test(pw)||/^\d+$/.test(pw))return 'الباسورد ضعيف: اخلط حروف وأرقام';if(COMMON.includes(pw.toLowerCase()))return 'الباسورد ده شائع وسهل التخمين، اختار غيره';if(un&&low(un)===pw.toLowerCase())return 'الباسورد ماينفعش يبقى زي اسم المستخدم';return ''};
  const score=pw=>{let s=0;if(pw.length>=8)s++;if(pw.length>=12)s++;if(/[a-z]/.test(pw)&&/[A-Z]/.test(pw))s++;if(/\d/.test(pw)&&/\D/.test(pw))s++;if(/[^A-Za-z0-9]/.test(pw))s++;return Math.min(4,s)};
@@ -344,16 +344,36 @@ const Auth=(()=>{
  const persist=d=>{if(!DK||DEMO)return;let json;try{json=JSON.stringify(d)}catch(e){return}const k=DK;q=q.then(async()=>{const v=await seal(k,te.encode(json));try{localStorage.setItem('kt_dbe',JSON.stringify({v:1,d:v}))}catch(e){toast('⚠️ مساحة التخزين على الجهاز امتلت. صدّر نسخة احتياطية وامسح صور قديمة')}}).catch(e=>console.error('save',e))};
  const flush=()=>q;
  const loadDb=async()=>{const r=localStorage.getItem('kt_dbe');if(!r)return null;return JSON.parse(new TextDecoder().decode(await open(DK,JSON.parse(r).d)))};
- const stash=()=>{try{sessionStorage.setItem('kt_sk',JSON.stringify({u:uid,k:b64(dek),t:t0,l:la}))}catch(e){}};
+ const stash=()=>{try{sessionStorage.setItem('kt_sk',JSON.stringify({u:uid,k:b64(dek),m:mk?b64(mk):'',t:t0,l:la}))}catch(e){}};
+
+ /* ===== الخزنة: الباسوردات المعروضة (pwv) وكود الاسترداد. مشفرة بمفتاح خاص (mk) ملفوف بباسورد المدير بس.
+    بتتخزن في db.vault كنص مشفر. أي جهاز مش مدير مش بيقدر يفتحها، وبنمسح الحقول القديمة من القاعدة المشتركة ===== */
+ const td=new TextDecoder(),mkey=raw=>S.importKey('raw',raw,'AES-GCM',false,['encrypt','decrypt']);
+ const isMgrId=id=>{const u=(db.users||[]).find(x=>x.id==id);return !!u&&(u.perms||[]).includes('*')};
+ const vStrip=()=>{(db.users||[]).forEach(u=>{delete u.pwv});if(db.settings)delete db.settings.recCode};
+ const vSave=async()=>{if(!mk||!VP)return;db.vault=db.vault||{mw:{}};db.vault.w=await seal(await mkey(mk),te.encode(JSON.stringify(VP)))};
+ const vWrap=async(un,pw)=>{if(!mk)return;const ks=getKS(),salt=rnd(16);db.vault=db.vault||{mw:{}};db.vault.mw=db.vault.mw||{};db.vault.mw[low(un)]={s:b64(salt),m:await seal(await kdf(pw,salt,ks.it),mk)}};
+ const vRecWrap=async()=>{const ks=getKS();if(!mk||!ks||!ks.rec||!VP||!VP.rec)return;ks.rec.mk=await seal(await kdf(normRec(VP.rec),unb(ks.rec.s),ks.it),mk);putKS(ks)};
+ const vLoad=async()=>{try{VP=JSON.parse(td.decode(await open(await mkey(mk),db.vault.w)))}catch(e){mk=null;VP=null}};
+ const vMigrate=async()=>{let ch=false;(db.users||[]).forEach(u=>{if(u.pwv){if(!VP.pw[u.id])VP.pw[u.id]=u.pwv;ch=true}});if(db.settings&&db.settings.recCode){if(!VP.rec)VP.rec=db.settings.recCode;ch=true}if(ch){vStrip();await vSave();await vRecWrap()}};
+ /* فتح/إنشاء الخزنة عند دخول المدير (الباسورد معروف). rc = كود الاسترداد لو الدخول بيه */
+ const vInit=async(un,pw,rc)=>{mk=null;VP=null;if(!isMgrId(uid)){vStrip();return}
+  const ks=getKS(),v=db.vault,en=v&&v.mw&&v.mw[low(un)];
+  if(en){try{mk=await open(await kdf(pw,unb(en.s),ks.it),en.m)}catch(e){mk=null}
+   if(!mk&&rc&&ks.rec&&ks.rec.mk){try{mk=await open(await kdf(normRec(rc),unb(ks.rec.s),ks.it),ks.rec.mk);await vWrap(un,pw)}catch(e){mk=null}}
+   if(mk)await vLoad();
+   if(!mk){/* مفتاح قديم مش قابل للفتح: نبدأ خزنة جديدة (الباسوردات المعروضة بتتكتب تاني) */db.vault=null}}
+  if(!db.vault){mk=rnd(32);VP={pw:{},rec:rc||''};db.vault={mw:{}};await vWrap(un,pw);await vSave()}
+  if(mk&&VP)await vMigrate();if(mk){stash();persist(db)}};
  /* فتح الجلسة بعد التحقق من الباسورد */
  const unlock=async(raw,id,data,force)=>{dek=raw;DK=await dkey(raw);uid=id;t0=la=Date.now();
   if(data===undefined)data=await loadDb();
-  if(data)db=data;ensure();const u=db.users.find(x=>x.id==uid);
+  if(data)db=data;ensure();mk=null;VP=null;if(!isMgrId(id))vStrip();const u=db.users.find(x=>x.id==uid);
   /* force: السحابة (المصدر الأصلي) بتقول إن الحساب اتفعّل تاني، فنصلّح النسخة المحلية القديمة اللي لسه موقوف فيها */
   if(force&&u&&u.active===false){u.active=true;try{(db.staff||[]).forEach(e=>{if(e.uid==id)(e.susp||[]).forEach(p=>{if(!p.to)p.to=new Date().toISOString().slice(0,10)})})}catch(x){}}
   if(!u||u.active===false){lock(true);throw new Error('off')}
   prev=u.last||0;u.last=Date.now();db.me=uid;db.users.forEach(x=>{delete x.ph});stash();persist(db)};
- const lock=(noReload)=>{dek=null;DK=null;uid=0;sessionStorage.removeItem('kt_sk');if(!noReload)location.reload()};
+ const lock=(noReload)=>{mk=null;VP=null;dek=null;DK=null;uid=0;sessionStorage.removeItem('kt_sk');if(!noReload)location.reload()};
  const onAct=()=>{const n=Date.now();if(n-la>15000){la=n;if(dek)stash()}la=n};
  const tick=()=>{if(!dek||DEMO)return;const n=Date.now();if(n-la>idleMs()||n-t0>12*3600e3){toast('🔒 اتقفل النظام لعدم الاستخدام');setTimeout(()=>lock(),700)}};
  ['click','keydown','touchstart','scroll'].forEach(e=>addEventListener(e,onAct,{passive:true}));setInterval(tick,20000);
@@ -361,6 +381,10 @@ const Auth=(()=>{
  return{
   ok:()=>!!DK&&uid>0,on:()=>!DEMO&&!!DK,get uid(){return uid},get prev(){return prev},get fresh(){return fresh},set fresh(v){fresh=v},
   pwErr,score,wait,persist,flush,lock,getKS,genRec,
+  vOk:()=>!!mk&&!!VP,vInit,vPw:id=>(VP&&VP.pw&&VP.pw[id])||'',vRec:()=>(VP&&VP.rec)||'',
+  async vSetPw(id,pw){if(!mk||!VP)throw new Error('الخزنة مش مفتوحة. ادخل بباسورد المدير');VP.pw[id]=pw;await vSave()},
+  async vWrapMgr(un,pw){if(mk){await vWrap(un,pw);await vSave()}},
+  async vSetRec(code){if(!mk||!VP)return;VP.rec=code;await vSave();await vRecWrap()},
   hasKS:()=>!!getKS(),hasData:()=>!!localStorage.getItem('kt_dbe'),
   legacyRaw:()=>localStorage.getItem('kt_db_real')||localStorage.getItem('kt_db'),
   /* أول تشغيل: إنشاء حساب المدير (وترحيل أي بيانات قديمة غير مشفرة) */
@@ -382,31 +406,31 @@ const Auth=(()=>{
      /* النسخة المحلية بتقول موقوف: نسأل السحابة. لو المدير فعّله تاني ندخله وننضّف النسخة المحلية */
      if(!(x&&x.message==='off'))throw x;let cu=null;try{const q=await KSY.envLogin(un,pw);cu=(q.data.users||[]).find(y=>y.id==en.id)}catch(z){}
      if(cu&&cu.active!==false)await unlock(raw,en.id,undefined,true);else throw x}
-    fresh=true;return{ok:true}}
+    try{await vInit(un,pw)}catch(x){mk=null;VP=null}fresh=true;return{ok:true}}
    catch(e){if(e&&e.message==='off')return{ok:false,msg:'الحساب ده موقوف. كلم المدير'};fail();const w2=wait();return{ok:false,msg:w2?'محاولات كتير غلط. استنى '+w2+' ثانية':'اسم المستخدم أو الباسورد غلط. اكتب اسم المستخدم بالظبط (حروف إنجليزي من غير مسافات) والباسورد (الحروف الكبيرة والصغيرة مهمة)'}}},
   async resume(){let s;try{s=JSON.parse(sessionStorage.getItem('kt_sk')||'null')}catch(e){}if(!s)return false;
    const n=Date.now();t0=s.t;la=s.l;if(n-s.l>idleMs0()||n-s.t>12*3600e3){sessionStorage.removeItem('kt_sk');return false}
-   try{await unlock(unb(s.k),s.u);t0=s.t;stash();return true}catch(e){sessionStorage.removeItem('kt_sk');dek=DK=null;uid=0;return false}},
+   try{await unlock(unb(s.k),s.u);t0=s.t;if(s.m&&db.vault&&isMgrId(uid)){mk=unb(s.m);await vLoad()}stash();return true}catch(e){sessionStorage.removeItem('kt_sk');dek=DK=null;uid=0;return false}},
   /* تغيير/تحديد باسورد مستخدم (لازم تكون داخل بالفعل) */
   async setPass(id,un,pw){if(!dek)throw new Error('سجل دخول الأول');const e=pwErr(pw,un);if(e)throw new Error(e);const ks=getKS();Object.keys(ks.u).forEach(k=>{if(ks.u[k].id==id)delete ks.u[k]});
    const salt=rnd(16);ks.u[low(un)]={id,s:b64(salt),w:await seal(await kdf(pw,salt,ks.it),dek)};putKS(ks)},
-  syncUser(id,un){const ks=getKS();if(!ks)return;const k=Object.keys(ks.u).find(x=>ks.u[x].id==id);if(k&&k!==low(un)){ks.u[low(un)]=ks.u[k];delete ks.u[k];putKS(ks)}},
-  removeUser(id){const ks=getKS();if(!ks)return;Object.keys(ks.u).forEach(k=>{if(ks.u[k].id==id)delete ks.u[k]});putKS(ks)},
+  syncUser(id,un){const ks=getKS();if(!ks)return;const k=Object.keys(ks.u).find(x=>ks.u[x].id==id);if(k&&k!==low(un)){ks.u[low(un)]=ks.u[k];delete ks.u[k];putKS(ks);try{const m=db.vault&&db.vault.mw;if(m&&m[k]){m[low(un)]=m[k];delete m[k]}}catch(e){}}},
+  removeUser(id){const ks=getKS();if(!ks)return;Object.keys(ks.u).forEach(k=>{if(ks.u[k].id==id){delete ks.u[k];try{if(db.vault&&db.vault.mw)delete db.vault.mw[k]}catch(e){}}});putKS(ks);if(VP&&VP.pw){delete VP.pw[id];vSave()}},
   /* جهاز جديد: الدخول بظرف المستخدم. بنعمل مفتاح جهاز جديد ونلفه بباسورد المستخدم من غير ما نحتاج باسورد البيانات */
   hasUser:un=>{const ks=getKS();return !!ks&&!!ks.u[low(un)]},
   async joinDevice(data,un,pw){const u=(data.users||[]).find(x=>low(x.username)===low(un));if(!u||u.active===false)throw new Error('الحساب ده مش موجود أو موقوف. كلم المدير');
    const raw=rnd(32),ks={v:1,it:IT,u:{},rec:null},salt=rnd(16);ks.u[low(un)]={id:u.id,s:b64(salt),w:await seal(await kdf(pw,salt,IT),raw)};
    putKS(ks);['kt_dbe','kt_db','kt_db_real','kt_demo'].forEach(x=>localStorage.removeItem(x));
-   await unlock(raw,u.id,data);await flush();fresh=true},
+   await unlock(raw,u.id,data);try{await vInit(un,pw)}catch(x){mk=null;VP=null}await flush();fresh=true},
   hasPass:id=>{const ks=getKS();return !!ks&&Object.values(ks.u).some(x=>x.id==id)},
-  async changeOwn(old,nw){if(!(db.users.find(x=>x.id==uid)||{perms:[]}).perms.includes('*'))throw new Error('تغيير الباسورد للمدير بس');const u=db.users.find(x=>x.id==uid),ks=getKS(),en=ks.u[low(u.username)];try{await open(await kdf(old,unb(en.s),ks.it),en.w)}catch(e){throw new Error('الباسورد الحالي غلط')}await Auth.setPass(uid,u.username,nw)},
-  async newRecovery(){const ks=getKS(),code=genRec(),rs=rnd(16);ks.rec={id:uid,s:b64(rs),w:await seal(await kdf(normRec(code),rs,ks.it),dek)};putKS(ks);return code},
+  async changeOwn(old,nw){if(!(db.users.find(x=>x.id==uid)||{perms:[]}).perms.includes('*'))throw new Error('تغيير الباسورد للمدير بس');const u=db.users.find(x=>x.id==uid),ks=getKS(),en=ks.u[low(u.username)];try{await open(await kdf(old,unb(en.s),ks.it),en.w)}catch(e){throw new Error('الباسورد الحالي غلط')}await Auth.setPass(uid,u.username,nw);if(mk){await vWrap(u.username,nw);await vSave();persist(db)}},
+  async newRecovery(){const ks=getKS(),code=genRec(),rs=rnd(16);ks.rec={id:uid,s:b64(rs),w:await seal(await kdf(normRec(code),rs,ks.it),dek)};putKS(ks);if(mk&&VP){VP.rec=code;await vSave();await vRecWrap();persist(db)}return code},
   /* نسيت الباسورد: كود الاسترداد بيفك المفتاح ونحدد باسورد جديد للمدير */
   async recover(code,pw){const w=wait();if(w)throw new Error('استنى '+w+' ثانية وحاول تاني');const ks=getKS();if(!ks||!ks.rec)throw new Error('مفيش كود استرداد متسجل');
    let raw;try{raw=await open(await kdf(normRec(code),unb(ks.rec.s),ks.it),ks.rec.w)}catch(e){fail();throw new Error('كود الاسترداد غلط')}
    okLogin();const data=await(async()=>{DK=await dkey(raw);const d=await loadDb();DK=null;return d})();
    const adm=data&&data.users.find(x=>x.id==ks.rec.id);if(!adm)throw new Error('تعذر قراءة البيانات');const e=pwErr(pw,adm.username);if(e)throw new Error(e);
-   dek=raw;DK=await dkey(raw);uid=adm.id;await Auth.setPass(adm.id,adm.username,pw);await unlock(raw,adm.id,data);fresh=true},
+   dek=raw;DK=await dkey(raw);uid=adm.id;await Auth.setPass(adm.id,adm.username,pw);await unlock(raw,adm.id,data);try{await vInit(adm.username,pw,code)}catch(x){mk=null;VP=null}fresh=true},
   wipeAll(){['kt_dbe','kt_ks','kt_lg','kt_db','kt_db_real','kt_demo'].forEach(x=>localStorage.removeItem(x));sessionStorage.removeItem('kt_sk')},
   /* نسخة احتياطية مشفرة بباسورد خاص */
   async packBackup(json,pass){const salt=rnd(16),it=300000;return JSON.stringify({kt:'bak1',it,s:b64(salt),d:await seal(await kdf(pass,salt,it),te.encode(json))})},
@@ -462,8 +486,8 @@ function authSetup(){const old=Auth.legacyRaw()?true:false;let a={};try{a=old?(J
  <div class="note">لا يوجد باسورد افتراضي. اختار باسورد قوي (8 أحرف على الأقل). هتاخد بعد كده كود استرداد لو نسيت الباسورد.</div>`)}
 async function authDoSetup(){const n=A$('st_n').value,u=A$('st_u').value,p=A$('st_p').value,c=A$('st_c').value,e=A$('st_e'),b=A$('st_b');e.textContent='';
  if(!n.trim()||!u.trim())return e.textContent='اكتب الاسم واسم المستخدم';if(/\s/.test(u.trim()))return e.textContent='اسم المستخدم من غير مسافات';const er=Auth.pwErr(p,u);if(er)return e.textContent=er;if(p!==c)return e.textContent='الباسورد وتأكيده مش زي بعض';
- b.disabled=true;b.textContent='جارِ التشفير…';try{const code=await Auth.setup(n,u,p);authRecShow(code,true)}catch(x){b.disabled=false;b.textContent='إنشاء الحساب وتشفير البيانات';e.textContent=x.message||'حصل خطأ'}}
-function authRecShow(code,first){try{if(db&&db.settings){db.settings.recCode=code;save()}}catch(e){}authShell(`<h1>كود الاسترداد 🔑</h1><div class="sub">احفظه في مكان آمن (ورقة أو مدير باسوردات)</div><div class="code" id="rc">${esc(code)}</div>
+ b.disabled=true;b.textContent='جارِ التشفير…';try{const code=await Auth.setup(n,u,p);try{await Auth.vInit(u.trim(),p)}catch(x){}authRecShow(code,true)}catch(x){b.disabled=false;b.textContent='إنشاء الحساب وتشفير البيانات';e.textContent=x.message||'حصل خطأ'}}
+function authRecShow(code,first){try{Auth.vSetRec(code).then(()=>save())}catch(e){}authShell(`<h1>كود الاسترداد 🔑</h1><div class="sub">احفظه في مكان آمن (ورقة أو مدير باسوردات)</div><div class="code" id="rc">${esc(code)}</div>
  <div class="note">لو نسيت الباسورد، الكود ده هو الطريقة الوحيدة لفتح بياناتك المشفرة. هتلاقيه دايماً في الإعدادات (🔒 الأمان) للمدير بس. أي حد معاه الكود يقدر يفتح النظام.</div>
  <button class="btn sec" type="button" onclick="navigator.clipboard&&navigator.clipboard.writeText('${esc(code)}').then(()=>toast('اتنسخ ✅'))">📋 نسخ الكود</button>
  <label class="chk" style="display:flex;gap:8px;align-items:center;margin-top:12px"><input type="checkbox" id="rc_ok" style="width:auto" onchange="A$('rc_b').disabled=!this.checked"> حفظت الكود</label><button class="btn" id="rc_b" disabled onclick="${first?'authAfterSetup()':'postInit();route()'}">${first?'ابدأ':'تمام'}</button>`)}
@@ -483,7 +507,7 @@ function postInit(){db.settings=db.settings||{name:'خالد تريد',sub:'أس
 (()=>{const G={saveUser:'users.manage',delUser:'users.manage',saveSettings:'settings.edit',backupExport:'settings.edit',backupImport:'settings.edit',startDemo:'settings.edit',addNote:'users.manage',saveNote:'users.manage',delNote:'users.manage',authNewRec:'users.manage'};
  Object.keys(G).forEach(n=>{const f=window[n];if(typeof f!=='function')return;window[n]=function(...a){if(!DEMO&&!can(G[n]))return toast('🔒 مش مسموح لك بالإجراء ده');return f.apply(this,a)}})})();
 /* ---------- المستخدمين: الباسورد بيتخزن مشفر مش هاش ---------- */
-async function userPass(u,pw,isNew){if(pw){if(!(me().perms||[]).includes('*')){toast('🔒 تغيير الباسورد للمدير بس');return false}const e=Auth.pwErr(pw,u.username);if(e){toast(e);return false}await Auth.setPass(u.id,u.username,pw);u.pwv=pw}else Auth.syncUser(u.id,u.username);return true}
+async function userPass(u,pw,isNew){if(pw){if(!(me().perms||[]).includes('*')){toast('🔒 تغيير الباسورد للمدير بس');return false}const e=Auth.pwErr(pw,u.username);if(e){toast(e);return false}await Auth.setPass(u.id,u.username,pw);delete u.pwv;if(Auth.vOk()){await Auth.vSetPw(u.id,pw);if((u.perms||[]).includes('*'))await Auth.vWrapMgr(u.username,pw)}}else Auth.syncUser(u.id,u.username);return true}
 /* ---------- نسخة احتياطية مشفرة + استعادة ---------- */
 function askPass(title,conf){return new Promise(res=>{const d=document.createElement('div');d.style.cssText='position:fixed;inset:0;z-index:98;background:#0009;display:flex;align-items:center;justify-content:center;padding:20px';d.innerHTML=`<div class="card" style="width:100%;max-width:380px"><h2>${esc(title)}</h2><label>الباسورد</label><input id="ap_1" type="password" autocomplete="off">${conf?'<label>تأكيد الباسورد</label><input id="ap_2" type="password" autocomplete="off">':''}<div class="er" id="ap_e" style="color:#c0392b;font-size:13px;min-height:18px;margin-top:8px"></div><div class="row2"><button class="btn" style="margin:0" id="ap_ok">تمام</button><button class="btn sec" style="margin:0" id="ap_no">إلغاء</button></div></div>`;document.body.appendChild(d);const done=v=>{d.remove();res(v)};
  A$('ap_no').onclick=()=>done(null);A$('ap_ok').onclick=()=>{const a=A$('ap_1').value;if(!a)return;if(conf){const e=Auth.pwErr(a,'');if(e)return A$('ap_e').textContent=e;if(a!==A$('ap_2').value)return A$('ap_e').textContent='الباسورد وتأكيده مش زي بعض'}done(a)};setTimeout(()=>A$('ap_1').focus(),50)})}
@@ -491,7 +515,7 @@ async function backupExport(){const p=await askPass('باسورد حماية ا�
 function backupImport(inp){const f=inp.files[0];if(!f)return;const r=new FileReader();r.onload=async()=>{let txt=String(r.result),d;try{const o=JSON.parse(txt);if(o&&o.kt==='bak1'){const p=await askPass('اكتب باسورد النسخة الاحتياطية');if(!p)return;try{txt=await Auth.unpackBackup(txt,p)}catch(e){return toast('الباسورد غلط أو الملف تالف')}}d=JSON.parse(txt)}catch(e){return toast('الملف مش صالح')}
  if(!d||!Array.isArray(d.invoices)||!Array.isArray(d.products)||!Array.isArray(d.customers)||!Array.isArray(d.users))return toast('ده مش ملف نسخة احتياطية للبرنامج');
  if(!confirm('هتستبدل كل البيانات الحالية بالنسخة اللي في الملف ('+d.invoices.length+' فاتورة، '+d.products.length+' صنف). حسابات الدخول الحالية هتفضل زي ما هي. متأكد؟'))return;
- const old=db.users;db=d;ensure();Auth.mergeRestore(db,old);db.users.forEach(u=>{delete u.ph});save();await Auth.flush();toast('تمت الاستعادة ✅');setTimeout(()=>location.reload(),600)};r.readAsText(f)}
+ const old=db.users,ov=db.vault;db=d;ensure();Auth.mergeRestore(db,old);if(ov)db.vault=ov;db.users.forEach(u=>{delete u.ph});save();await Auth.flush();toast('تمت الاستعادة ✅');setTimeout(()=>location.reload(),600)};r.readAsText(f)}
 /* ---------- إعدادات الأمان ---------- */
 const _rsA=R['/settings'];R['/settings']=()=>{const h=_rsA();if(DEMO||!Auth.on())return h;const adm=can('users.manage');
  return h+`<div class="card"><h2>🔒 الأمان</h2><div class="stat"><span>تشفير البيانات</span><b style="color:#1c4b92">مفعّل (AES-256)</b></div><div class="stat"><span>المستخدم الحالي</span><b>${esc(me().name)}</b></div>
@@ -533,12 +557,12 @@ window.addEventListener('load',()=>{try{gateDel()}catch(e){}});
 
 /* ---------- 🔑 كود الاسترداد في الإعدادات: للمدير بس، دايماً ظاهر (👁 إظهار + نسخ) ---------- */
 const recIsMgr=()=>(me().perms||[]).includes('*');
-const _rsRec=R['/settings'];R['/settings']=()=>{const h=_rsRec();if(DEMO||!Auth.on()||!recIsMgr())return h;const c=(db.settings||{}).recCode;
+const _rsRec=R['/settings'];R['/settings']=()=>{const h=_rsRec();if(DEMO||!Auth.on()||!recIsMgr())return h;const c=Auth.vRec();
  return h+`<div class="card"><h2>🔑 كود الاسترداد (للمدير بس)</h2>`+(c?
   `<div class="s" style="color:var(--mut);margin-bottom:8px">لو نسيت باسورد المدير، الكود ده بيفتح النظام. متقولوش لأي حد.</div><div style="display:flex;gap:8px;align-items:center"><span id="rec_v" dir="ltr" data-v="0" style="flex:1;font-family:monospace;font-size:15px;letter-spacing:1px">••••-••••-••••-••••-••••</span><button type="button" class="chipb" style="font-size:18px;padding:4px 12px" onclick="recEye()">👁 إظهار</button><button type="button" class="chipb" style="font-size:16px;padding:4px 12px" onclick="recCopy()">📋 نسخ</button></div>`
   :`<div class="s" style="color:var(--mut);margin-bottom:8px">الكود الحالي اتعمل قبل كده ومش متخزن للعرض (مفيش طريقة نقراه). اضغط هنا يعمل كود جديد يفضل ظاهر هنا دايماً (الكود القديم هيتلغي).</div><button class="btn" onclick="authNewRec()">🔑 إنشاء كود جديد يفضل ظاهر</button>`)+`</div>`};
-function recEye(){if(!recIsMgr())return;const c=(db.settings||{}).recCode,el=document.getElementById('rec_v');if(!c||!el)return;const on=el.dataset.v==='1';el.dataset.v=on?'0':'1';el.textContent=on?'••••-••••-••••-••••-••••':c}
-function recCopy(){if(!recIsMgr())return;const c=(db.settings||{}).recCode;if(!c)return;navigator.clipboard&&navigator.clipboard.writeText(c).then(()=>toast('اتنسخ ✅'))}
+function recEye(){if(!recIsMgr())return;const c=Auth.vRec(),el=document.getElementById('rec_v');if(!c||!el)return;const on=el.dataset.v==='1';el.dataset.v=on?'0':'1';el.textContent=on?'••••-••••-••••-••••-••••':c}
+function recCopy(){if(!recIsMgr())return;const c=Auth.vRec();if(!c)return;navigator.clipboard&&navigator.clipboard.writeText(c).then(()=>toast('اتنسخ ✅'))}
 
 
 const needLogin=()=>!DEMO&&!Auth.ok();
