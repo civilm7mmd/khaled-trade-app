@@ -68,6 +68,20 @@ function demoAlerts(){const p=db.products;if(p[0]){p[0].min=Math.max(+p[0].min||
 RT.push(['low','📉 أصناف وصلت للحد الأدنى']);
 const _rbLow=repBody;repBody=function(t,PR){if(t==='low'){const rows=db.products.filter(p=>+p.min>0&&+p.stock<=+p.min).sort((a,b)=>(+a.stock)-(+b.stock));return rows.length?rtbl(['الصنف','الرصيد','الحد الأدنى','الناقص'],rows.map(p=>[esc(p.name),fmt(p.stock)+' '+esc(unitT(p)),fmt(p.min),fmt(Math.max(0,(+p.min)-(+p.stock)))])):'<div class="empty">مفيش أصناف وصلت للحد الأدنى</div>'}return _rbLow(t,PR)};
 
+/* ---------- 📲 تثبيت التطبيق على الموبايل (أندرويد وآيفون) + تحميل APK ----------
+   كارت في الإعدادات بخطوات بالعربي. زرار "ثبّت دلوقتي" بيظهر لو المتصفح بيدعمه (أندرويد Chrome).
+   مش بيظهر جوه تطبيق الأندرويد نفسه (الـWebView بيبعت KhaledTradeApp في الـUserAgent). */
+let _instEv=null;addEventListener('beforeinstallprompt',e=>{e.preventDefault();_instEv=e;try{if(location.hash==='#/settings')route()}catch(x){}});
+addEventListener('appinstalled',()=>{_instEv=null;try{toast('اتثبّت ✅')}catch(x){}});
+const instStandalone=()=>{try{return matchMedia('(display-mode: standalone)').matches||navigator.standalone===true}catch(e){return false}};
+const _rsInst=R['/settings'];R['/settings']=()=>{const h=_rsInst();if(/KhaledTradeApp/.test(navigator.userAgent))return h;const ios=/iPhone|iPad|iPod/.test(navigator.userAgent);
+ const st=(n,t)=>`<div style="display:flex;gap:8px;margin:6px 0"><b style="min-width:22px;height:22px;border-radius:50%;background:var(--pri,#13233b);color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px">${n}</b><span class="s" style="flex:1">${t}</span></div>`;
+ return h+`<div class="card noprint"><h2>📲 تثبيت التطبيق على الموبايل</h2>`+(instStandalone()?`<div class="stat"><span>الحالة</span><b style="color:#1c4b92">شغال كتطبيق مثبّت ✅</b></div>`:`<div class="s" style="color:var(--mut);margin-bottom:8px">بعد التثبيت بتلاقي أيقونة خالد تريد على الشاشة الرئيسية، وبيفتح بملء الشاشة زي أي تطبيق، وبيفتح حتى لو النت ضعيف. بياناتك زي ما هي.</div>`+(_instEv?`<button class="btn" onclick="instNow()">📲 ثبّت دلوقتي</button>`:''))+
+ `<details ${ios?'open':''} style="margin-top:10px"><summary style="font-weight:700;cursor:pointer">🍎 آيفون (Safari)</summary>${st(1,'افتح الرابط من متصفح <b>Safari</b> (مش من جوه تطبيق تاني).')}${st(2,'دوس على زرار المشاركة <b>⬆️</b> اللي تحت في النص.')}${st(3,'انزل واختار <b>إضافة إلى الشاشة الرئيسية</b>.')}${st(4,'دوس <b>إضافة</b> فوق. هتلاقي الأيقونة على الشاشة، افتحها منها.')}</details>`+
+ `<details ${ios?'':'open'} style="margin-top:6px"><summary style="font-weight:700;cursor:pointer">🤖 أندرويد (Chrome)</summary>${st(1,'افتح الرابط من <b>Chrome</b>.')}${st(2,'دوس على النقط التلاتة <b>⋮</b> فوق على اليمين.')}${st(3,'اختار <b>تثبيت التطبيق</b> (أو <b>إضافة إلى الشاشة الرئيسية</b>) وبعدين <b>تثبيت</b>.')}${st(4,'افتح الأيقونة من الشاشة الرئيسية.')}</details>`+
+ `<details style="margin-top:6px"><summary style="font-weight:700;cursor:pointer">📦 تطبيق أندرويد (ملف APK)</summary>${st(1,'دوس على زرار التحميل تحت.')}${st(2,'افتح الملف اللي نزل. لو الموبايل سأل، اسمح بالتثبيت من المتصفح (<b>السماح بالتثبيت من هذا المصدر</b>).')}${st(3,'دوس <b>تثبيت</b> وبعدين <b>فتح</b>. لو ظهر تحذير أمان فده عادي لأن التطبيق مش من Google Play.')}<a class="btn sec" href="khaled-trade.apk" download style="display:block;text-align:center;text-decoration:none;margin-top:8px">⬇️ تحميل تطبيق الأندرويد (APK)</a></details><div class="s" style="color:var(--mut);margin-top:10px">رابط تدّيه لأي حد يثبّت منه: <b dir="ltr" style="user-select:all">${esc(location.origin+location.pathname.replace(/[^/]*$/,'')+'install.html')}</b></div></div>`};
+function instNow(){if(!_instEv)return;_instEv.prompt();_instEv.userChoice.finally(()=>{_instEv=null;try{route()}catch(x){}})}
+
 
 /* ---------- سند قبض وسند صرف ----------
    db.vch = [{id,no,k:'in'|'out',date,ts,by(المستلم/الدافع),pk:'c'|'s',pid,amount,acct,note}]
